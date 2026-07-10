@@ -140,8 +140,8 @@ class SaiOSDatabase extends Dexie {
   pomodoroLogs!: Table<PomodoroLog>;
   goals!: Table<Goal>;
 
-  constructor() {
-    super('SaiOSDatabase');
+  constructor(dbName: string) {
+    super(dbName);
     this.version(1).stores({
       tasks: '++id, date, subject, status, isPinned',
       dailyLogs: 'date',
@@ -156,4 +156,14 @@ class SaiOSDatabase extends Dexie {
   }
 }
 
-export const db = new SaiOSDatabase();
+const getDatabaseName = () => {
+  if (typeof window !== 'undefined') {
+    const user = localStorage.getItem('saios_current_user');
+    if (user) {
+      return `SaiOSDatabase_${user}`;
+    }
+  }
+  return 'SaiOSDatabase_default';
+};
+
+export const db = new SaiOSDatabase(getDatabaseName());

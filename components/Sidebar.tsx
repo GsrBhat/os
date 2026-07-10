@@ -16,7 +16,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   Trophy,
-  Coins
+  Coins,
+  LogOut
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 
@@ -144,15 +145,28 @@ export default function Sidebar({ currentView, setView, collapsed, setCollapsed 
         </nav>
       </div>
 
-      {/* Footer / System Status */}
-      <div className={`px-4 ${collapsed ? 'text-center' : 'pl-6'}`}>
+      {/* Footer / Log Out & System Status */}
+      <div className="px-4 space-y-3">
+        <button
+          onClick={() => {
+            if (confirm('Are you sure you want to log out of your study workspace?')) {
+              localStorage.removeItem('saios_current_user');
+              window.location.reload();
+            }
+          }}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-white/5 bg-white/5 hover:bg-red-500/10 hover:border-red-500/20 text-zinc-400 hover:text-red-400 text-xs font-semibold transition-all cursor-pointer"
+        >
+          <LogOut size={14} />
+          {!collapsed && <span>Log Out</span>}
+        </button>
+
         {!collapsed ? (
-          <div className="text-[10px] text-zinc-500 font-mono space-y-1">
+          <div className="text-[10px] text-zinc-500 font-mono space-y-0.5 text-center">
             <p>System Version: 1.0.0</p>
-            <p>IndexedDB: Online</p>
+            <p>IndexedDB: Scoped</p>
           </div>
         ) : (
-          <div className="w-2 h-2 rounded-full bg-emerald-500 mx-auto animate-pulse" title="System Online" />
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mx-auto animate-pulse" title="System Scoped" />
         )}
       </div>
     </aside>

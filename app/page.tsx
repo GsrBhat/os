@@ -15,6 +15,7 @@ import HabitsView from '@/components/HabitsView';
 import NotesView from '@/components/NotesView';
 import CalendarView from '@/components/CalendarView';
 import AIAssistantView from '@/components/AIAssistantView';
+import AuthView from '@/components/AuthView';
 import SettingsView from '@/components/SettingsView';
 import { useStore } from '@/lib/store';
 
@@ -25,14 +26,33 @@ export default function Home() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
+  
+  // Auth states
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
 
-  // Check onboarding status from LocalStorage on mount
+  // Check onboarding status and auth from LocalStorage on mount
   useEffect(() => {
-    const onboarded = localStorage.getItem('saios_onboarded');
+    const user = localStorage.getItem('saios_current_user');
+    setCurrentUser(user);
+
+    const onboardedKey = user ? `saios_onboarded_${user}` : 'saios_onboarded';
+    const onboarded = localStorage.getItem(onboardedKey);
     setIsOnboarded(onboarded === 'true');
+    setIsAuthChecked(true);
   }, []);
 
+  const handleLoginSuccess = (username: string) => {
+    localStorage.setItem('saios_current_user', username);
+    window.location.reload(); // Reload triggers new scoped Dexie DB connection
+  };
+
   const handleOnboardingComplete = () => {
+    if (currentUser) {
+      localStorage.setItem(`saios_onboarded_${currentUser}`, 'true');
+    } else {
+      localStorage.setItem('saios_onboarded', 'true');
+    }
     setIsOnboarded(true);
   };
 
@@ -40,6 +60,21 @@ export default function Home() {
     setView('planner');
     setAddTaskModalOpen(true);
   };
+
+  // Wait until auth status is checked
+  if (!isAuthChecked) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-mono text-xs text-zinc-500 gap-3">
+        <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-ping" />
+        <span>Verifying login state...</span>
+      </div>
+    );
+  }
+
+  // Show Auth view if no active session
+  if (!currentUser) {
+    return <AuthView onLoginSuccess={handleLoginSuccess} />;
+  }
 
   // Wait until onboarding check and DB seed is evaluated
   if (isOnboarded === null || !seedCompleted) {
