@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, Play, Pause, CheckCircle, Search, Sparkles, Bell, Sun, Moon } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { db, type Task } from '@/lib/db';
@@ -27,13 +27,62 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
   ]);
 
   const [userName, setUserName] = useState<string>('User');
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [toastMsg, setToastMsg] = useState<string>('');
+  const notificationRef = useRef<HTMLDivElement>(null);
 
+  // Click outside listener for notifications card
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch active user credentials
   useEffect(() => {
     const user = localStorage.getItem('aetheros_current_user');
     if (user) {
       setUserName(user.charAt(0).toUpperCase() + user.slice(1));
+      const usersStr = localStorage.getItem('aetheros_users') || '[]';
+      const users = JSON.parse(usersStr) as { username: string; email?: string }[];
+      const activeUserObj = users.find(u => u.username === user);
+      if (activeUserObj && activeUserObj.email) {
+        setUserEmail(activeUserObj.email);
+      } else {
+        setUserEmail(`${user}@aetheros.dev`);
+      }
     }
   }, []);
+
+  const handleMarkAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    if (userEmail) {
+      setToastMsg(`Forwarded alerts to ${userEmail}`);
+      console.log(
+        `%c[AetherOS SMTP Simulated Mailer]%c\nTo: ${userEmail}\nSubject: Notification Alert Summary\nBody: You marked your daily alerts as read.\n---------------------------------------`,
+        'color: #a855f7; font-weight: bold;',
+        'color: #94a3b8;'
+      );
+      setTimeout(() => setToastMsg(''), 3000);
+    }
+  };
+
+  const handleMarkOneRead = (id: number) => {
+    setNotifications(prev => prev.map(item => item.id === id ? { ...item, read: true } : item));
+    if (userEmail) {
+      setToastMsg(`Forwarded updates to ${userEmail}`);
+      console.log(
+        `%c[AetherOS SMTP Simulated Mailer]%c\nTo: ${userEmail}\nSubject: Single Notification Cleared\nBody: Notification ID ${id} was marked as read.\n---------------------------------------`,
+        'color: #a855f7; font-weight: bold;',
+        'color: #94a3b8;'
+      );
+      setTimeout(() => setToastMsg(''), 3000);
+    }
+  };
 
   const toggleTheme = () => {
     const nextTheme = settings.theme === 'light' ? 'midnight' : 'light';
@@ -168,7 +217,7 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
         </div>
 
         {/* Notifications interactive icon & dropdown */}
-        <div className="relative">
+        <div className="relative" ref={notificationRef}>
           <button 
             onClick={() => setShowNotifications(!showNotifications)}
             className="p-2 rounded-lg border border-white/5 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors relative cursor-pointer"
@@ -183,23 +232,28 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
           {showNotifications && (
             <div className="absolute right-0 mt-2 w-72 bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl rounded-2xl p-4 z-50 text-xs text-[var(--text-primary)] space-y-3 animate-in fade-in duration-200">
               <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                <span className="font-bold text-white">System Notifications</span>
+                <span className="font-bold text-white font-sans">System Notifications</span>
                 <button 
-                  onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                  onClick={handleMarkAllRead}
                   className="text-[10px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer"
                 >
                   Mark all read
                 </button>
               </div>
+
+              {/* Email forwarding indicator toast */}
+              {toastMsg && (
+                <div className="p-2 rounded-lg border border-purple-500/20 bg-purple-500/5 text-purple-300 text-[10px] text-center font-semibold animate-pulse font-sans">
+                  {toastMsg}
+                </div>
+              )}
               
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {notifications.length > 0 ? (
                   notifications.map(n => (
                     <div 
                       key={n.id} 
-                      onClick={() => {
-                        setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item));
-                      }}
+                      onClick={() => handleMarkOneRead(n.id)}
                       className={`p-2 rounded-lg border cursor-pointer transition-colors ${
                         n.read 
                           ? 'border-white/5 bg-transparent opacity-60' 

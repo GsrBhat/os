@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Lock, User, LogIn, UserPlus, Sparkles, AlertCircle } from 'lucide-react';
+import { Lock, User, LogIn, UserPlus, Sparkles, AlertCircle, Mail } from 'lucide-react';
 
 interface AuthViewProps {
   onLoginSuccess: (username: string) => void;
@@ -10,15 +10,19 @@ interface AuthViewProps {
 export default function AuthView({ onLoginSuccess }: AuthViewProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [mailSentSuccess, setMailSentSuccess] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setMailSentSuccess('');
 
     const trimmedUsername = username.trim().toLowerCase();
+    const trimmedEmail = email.trim().toLowerCase();
     const trimmedPassword = password.trim();
 
     if (!trimmedUsername || !trimmedPassword) {
@@ -38,36 +42,69 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
 
     // Get current users from localStorage
     const usersStr = localStorage.getItem('aetheros_users') || '[]';
-    const users = JSON.parse(usersStr) as { username: string; password: string }[];
+    const users = JSON.parse(usersStr) as { username: string; email?: string; password: string }[];
 
     if (isSignUp) {
+      if (!trimmedEmail) {
+        setError('Email address is required to register.');
+        return;
+      }
+      if (!trimmedEmail.includes('@') || !trimmedEmail.includes('.')) {
+        setError('Please enter a valid email address.');
+        return;
+      }
       if (trimmedPassword !== confirmPassword.trim()) {
         setError('Passwords do not match.');
         return;
       }
 
-      // Check if user already exists
+      // Check if username already exists
       const userExists = users.some(u => u.username === trimmedUsername);
       if (userExists) {
         setError('Username already taken.');
         return;
       }
 
+      // Check if email already exists
+      const emailExists = users.some(u => u.email === trimmedEmail);
+      if (emailExists) {
+        setError('Email address already in use.');
+        return;
+      }
+
       // Create new user account
-      users.push({ username: trimmedUsername, password: trimmedPassword });
+      users.push({ username: trimmedUsername, email: trimmedEmail, password: trimmedPassword });
       localStorage.setItem('aetheros_users', JSON.stringify(users));
 
-      // Trigger login success
-      onLoginSuccess(trimmedUsername);
+      // Simulate sending confirmation email
+      console.log(
+        `%c[AetherOS SMTP Simulated Mailer]%c\nTo: ${trimmedEmail}\nSubject: Welcome to AetherOS - Confirm Workspace\nBody: Hello ${trimmedUsername},\nYour AetherOS workspace has been successfully created. Welcome aboard!\n---------------------------------------`,
+        'color: #a855f7; font-weight: bold;',
+        'color: #94a3b8;'
+      );
+
+      // Display visual toast confirmation
+      setMailSentSuccess(`📧 Confirmation email sent to ${trimmedEmail}!`);
+      setTimeout(() => {
+        onLoginSuccess(trimmedUsername);
+      }, 2000);
     } else {
-      // Find matching user
+      // Find matching user (Login only requires Username and Password)
       const user = users.find(u => u.username === trimmedUsername && u.password === trimmedPassword);
       if (!user) {
         // Fallback convenience accounts
-        if ((trimmedUsername === 'sai' && trimmedPassword === 'sai') || (trimmedUsername === 'guest' && trimmedPassword === 'guest')) {
-          users.push({ username: trimmedUsername, password: trimmedPassword });
+        if (trimmedUsername === 'sai' && trimmedPassword === 'sai') {
+          const defaultEmail = 'sai@aetheros.edu';
+          users.push({ username: 'sai', email: defaultEmail, password: 'sai' });
           localStorage.setItem('aetheros_users', JSON.stringify(users));
-          onLoginSuccess(trimmedUsername);
+          onLoginSuccess('sai');
+          return;
+        }
+        if (trimmedUsername === 'guest' && trimmedPassword === 'guest') {
+          const defaultEmail = 'guest@aetheros.dev';
+          users.push({ username: 'guest', email: defaultEmail, password: 'guest' });
+          localStorage.setItem('aetheros_users', JSON.stringify(users));
+          onLoginSuccess('guest');
           return;
         }
         setError('Invalid username or password.');
@@ -106,7 +143,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
         <div className="flex items-center gap-1.5 p-1 rounded-xl bg-zinc-950 border border-white/5 mb-6 font-sans">
           <button
             type="button"
-            onClick={() => { setIsSignUp(false); setError(''); }}
+            onClick={() => { setIsSignUp(false); setError(''); setMailSentSuccess(''); }}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               !isSignUp 
                 ? 'bg-gradient-to-r from-purple-500/10 to-blue-500/10 text-white border border-purple-500/20 shadow-md' 
@@ -118,7 +155,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
           </button>
           <button
             type="button"
-            onClick={() => { setIsSignUp(true); setError(''); }}
+            onClick={() => { setIsSignUp(true); setError(''); setMailSentSuccess(''); }}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               isSignUp 
                 ? 'bg-gradient-to-r from-purple-500/10 to-blue-500/10 text-white border border-purple-500/20 shadow-md' 
@@ -140,6 +177,13 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
             </div>
           )}
 
+          {/* Success Mail Message */}
+          {mailSentSuccess && (
+            <div className="p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-xs flex items-start gap-2 animate-pulse">
+              <span>{mailSentSuccess}</span>
+            </div>
+          )}
+
           {/* Username Input */}
           <div>
             <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Username</label>
@@ -154,6 +198,23 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
               />
             </div>
           </div>
+
+          {/* Email Input (only for Sign Up) */}
+          {isSignUp && (
+            <div className="animate-in slide-in-from-top-2 duration-200">
+              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
+                <input
+                  type="text"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. sai@example.com"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/5 bg-zinc-950 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 font-sans"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Password Input */}
           <div>
@@ -202,7 +263,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
         <div className="mt-5 text-[10px] text-zinc-600 text-center leading-relaxed font-sans border-t border-white/5 pt-4">
           <Sparkles className="inline text-purple-400 mr-1" size={10} />
           {isSignUp 
-            ? 'Creating an account instantiates a separate local study database for you.' 
+            ? 'A confirmation email will be dispatched to verify your new database connection.' 
             : 'Enter credentials to open your private local IndexedDB environment.'}
         </div>
       </div>
