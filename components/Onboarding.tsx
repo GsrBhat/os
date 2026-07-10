@@ -48,8 +48,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       localStorage.setItem(`aetheros_target_date_${user}`, targetDate);
       localStorage.setItem(`aetheros_daily_hours_${user}`, dailyHours.toString());
       
-      // Award XP
-      addXP(50);
+      // Onboarding complete (no XP awarded to keep start at zero)
       
       // Fetch current badges and add 'Onboarding Champion'
       const savedBadges = localStorage.getItem(`aetheros_badges_${user}`);
@@ -231,12 +230,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               </div>
               <h2 className="text-2xl font-bold tracking-tight text-white">Setup Ready!</h2>
               <p className="text-sm text-zinc-400 leading-relaxed font-sans max-w-sm mx-auto">
-                All systems initialized. You will start with a fresh study plan customized to your target exam dates and a booster reward:
+                All systems initialized. You will start with a fresh study plan customized to your target exam dates and a starting achievement:
               </p>
               
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold font-mono max-w-xs mx-auto justify-center">
                 <Trophy size={16} />
-                <span>+50 XP & &quot;Onboarding Champion&quot; Badge</span>
+                <span>&quot;Onboarding Champion&quot; Badge Unlocked!</span>
               </div>
             </div>
           )}
