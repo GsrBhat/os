@@ -1,0 +1,160 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: var(--font-geist-sans), Inter, sans-serif;
+    --font-mono: var(--font-geist-mono), monospace;
+  }
+
+  /* Themes Configuration */
+  body.theme-dark {
+    --bg-primary: #09090b;
+    --bg-secondary: #18181b;
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-glow: rgba(59, 130, 246, 0.15);
+    --text-primary: #f4f4f5;
+    --text-secondary: #a1a1aa;
+    --accent: #3b82f6; /* Electric Blue */
+    --accent-rgb: 59, 130, 246;
+    --accent-secondary: #10b981; /* Emerald Green */
+    --glow-strength: 15px;
+  }
+
+  body.theme-midnight {
+    --bg-primary: #020205;
+    --bg-secondary: #0a0a14;
+    --border-color: rgba(255, 255, 255, 0.06);
+    --border-glow: rgba(168, 85, 247, 0.15);
+    --text-primary: #fafafa;
+    --text-secondary: #94a3b8;
+    --accent: #a855f7; /* Purple */
+    --accent-rgb: 168, 85, 247;
+    --accent-secondary: #3b82f6; /* Blue */
+    --glow-strength: 20px;
+  }
+
+  body.theme-blue {
+    --bg-primary: #030712;
+    --bg-secondary: #111827;
+    --border-color: rgba(255, 255, 255, 0.07);
+    --border-glow: rgba(59, 130, 246, 0.2);
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --accent: #3b82f6; /* Blue */
+    --accent-rgb: 59, 130, 246;
+    --accent-secondary: #10b981; /* Emerald Green */
+    --glow-strength: 15px;
+  }
+
+  body.theme-purple {
+    --bg-primary: #090514;
+    --bg-secondary: #140b2b;
+    --border-color: rgba(255, 255, 255, 0.06);
+    --border-glow: rgba(236, 72, 153, 0.15);
+    --text-primary: #fdfaf6;
+    --text-secondary: #a78bfa;
+    --accent: #ec4899; /* Pink */
+    --accent-rgb: 236, 72, 153;
+    --accent-secondary: #8b5cf6; /* Purple */
+    --glow-strength: 20px;
+  }
+
+  body.theme-light {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --border-color: rgba(0, 0, 0, 0.08);
+    --border-glow: rgba(59, 130, 246, 0.05);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --accent: #2563eb;
+    --accent-rgb: 37, 99, 235;
+    --accent-secondary: #059669;
+    --glow-strength: 10px;
+  }
+
+  /* Global Rules */
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Premium UI Classes */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.theme-light .glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.glass-panel:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px var(--border-glow);
+}
+
+body.theme-light .glass-panel:hover {
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+}
+
+.glow-border {
+  border: 1px solid var(--border-color);
+  box-shadow: 0 0 0 0 transparent;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glow-border:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 var(--glow-strength) var(--border-glow);
+}
+
+/* Dynamic Gradients */
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-bg {
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1) 0%, rgba(255, 255, 255, 0.02) 100%);
+}
+
+/* Custom Grid Background */
+.bg-grid-pattern {
+  background-size: 40px 40px;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.01) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(255, 255, 255, 0.01) 1px, transparent 1px);
+}
+
+body.theme-light .bg-grid-pattern {
+  background-image: linear-gradient(to right, rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
+}
