@@ -123,8 +123,8 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
           onClick={onSearchClick}
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10 text-zinc-400 hover:text-white text-xs transition-all cursor-pointer font-sans"
         >
-          <Search size={14} />
-          <span>Search...</span>
+          <Search size={14} className="transition-transform group-hover:scale-110" />
+          <span>Search tasks, notes, subjects...</span>
           <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-white/10 bg-white/10 px-1 font-mono text-[10px] font-medium text-zinc-500">
             Ctrl+K
           </kbd>
