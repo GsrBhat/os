@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Clock, Play, Pause, CheckCircle, Search, Sparkles, Bell } from 'lucide-react';
+import { Clock, Play, Pause, CheckCircle, Search, Sparkles, Bell, Sun, Moon } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { db, type Task } from '@/lib/db';
 
@@ -11,12 +11,25 @@ interface HeaderProps {
 }
 
 export default function Header({ currentView, onSearchClick }: HeaderProps) {
-  const { activeTimer, pauseTaskTimer, stopTaskTimer } = useStore();
+  const { activeTimer, pauseTaskTimer, stopTaskTimer, settings, updateSettings } = useStore();
   const [time, setTime] = useState<string>('');
   const [dateStr, setDateStr] = useState<string>('');
   const [greeting, setGreeting] = useState<string>('Hello');
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [timerDisplay, setTimerDisplay] = useState<string>('00:00');
+  
+  // Quick notifications list
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([
+    { id: 1, text: '📅 Target due: Transient response of RC circuits (GATE ECE)', read: false },
+    { id: 2, text: '🔥 Consistency Check: You are on a 7-day study streak!', read: false },
+    { id: 3, text: '🎓 Revision alert: Python core decorators scheduled today', read: false },
+  ]);
+
+  const toggleTheme = () => {
+    const nextTheme = settings.theme === 'light' ? 'midnight' : 'light';
+    updateSettings({ theme: nextTheme });
+  };
 
   // Live Clock & Greeting
   useEffect(() => {
@@ -130,17 +143,70 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
           </kbd>
         </button>
 
+        {/* Dark/Light Quick Toggle */}
+        <button
+          onClick={toggleTheme}
+          className="p-2 rounded-lg border border-white/5 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          title="Toggle Light / Dark Mode"
+        >
+          {settings.theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+        </button>
+
         {/* Live clock view */}
         <div className="hidden md:flex items-center gap-2 text-zinc-300 font-mono text-sm px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02]">
           <Clock size={14} className="text-purple-400" />
           <span>{time}</span>
         </div>
 
-        {/* Notifications mock icon */}
-        <button className="p-2 rounded-lg border border-white/5 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors relative cursor-pointer">
-          <Bell size={16} />
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-purple-500" />
-        </button>
+        {/* Notifications interactive icon & dropdown */}
+        <div className="relative">
+          <button 
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="p-2 rounded-lg border border-white/5 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors relative cursor-pointer"
+            title="System Alerts"
+          >
+            <Bell size={16} />
+            {notifications.some(n => !n.read) && (
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-purple-500" />
+            )}
+          </button>
+          
+          {showNotifications && (
+            <div className="absolute right-0 mt-2 w-72 glass-panel border border-white/10 bg-zinc-950/95 shadow-2xl p-4 z-50 text-xs text-zinc-300 space-y-3 animate-in fade-in duration-200">
+              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="font-bold text-white">System Notifications</span>
+                <button 
+                  onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                  className="text-[10px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer"
+                >
+                  Mark all read
+                </button>
+              </div>
+              
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {notifications.length > 0 ? (
+                  notifications.map(n => (
+                    <div 
+                      key={n.id} 
+                      onClick={() => {
+                        setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item));
+                      }}
+                      className={`p-2 rounded-lg border cursor-pointer transition-colors ${
+                        n.read 
+                          ? 'border-white/5 bg-transparent opacity-60' 
+                          : 'border-purple-500/10 bg-purple-500/[0.02] hover:bg-purple-500/5'
+                      }`}
+                    >
+                      <p className="leading-relaxed font-sans">{n.text}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-zinc-500">No new notifications.</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

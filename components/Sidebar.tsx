@@ -122,7 +122,7 @@ export default function Sidebar({ currentView, setView, collapsed, setCollapsed 
         </div>
 
         {/* Menu Navigation */}
-        <nav className="space-y-1">
+        <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-280px)] pr-1 select-none">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentView === item.id;

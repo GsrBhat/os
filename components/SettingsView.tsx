@@ -110,7 +110,7 @@ export default function SettingsView() {
 
   // Clear Database completely
   const handleClearDatabase = async () => {
-    if (confirm('WARNING: This will permanently wipe all local study logs, notes, subjects, and habits. There is no undo unless you have a backup. Wipe completely?')) {
+    if (confirm('WARNING: This will permanently wipe all local study logs, notes, subjects, and habits. Your progress will be reset and you will return to the onboarding setup. Proceed?')) {
       await db.tasks.clear();
       await db.dailyLogs.clear();
       await db.subjects.clear();
@@ -122,7 +122,7 @@ export default function SettingsView() {
       await db.goals.clear();
       
       localStorage.clear();
-      alert('Local database wiped successfully.');
+      alert('All progress has been reset. Reloading workspace...');
       window.location.reload();
     }
   };
@@ -228,7 +228,7 @@ export default function SettingsView() {
               className="w-full flex items-center justify-center gap-1.5 p-3 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 transition-colors text-xs font-semibold cursor-pointer"
             >
               <Trash2 size={14} />
-              <span>Wipe Local Data</span>
+              <span>Reset All Progress (Start Fresh)</span>
             </button>
           </div>
         </div>
