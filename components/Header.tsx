@@ -172,7 +172,7 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
           </button>
           
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-72 glass-panel border border-white/10 bg-zinc-950/95 shadow-2xl p-4 z-50 text-xs text-zinc-300 space-y-3 animate-in fade-in duration-200">
+            <div className="absolute right-0 mt-2 w-72 bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl rounded-2xl p-4 z-50 text-xs text-[var(--text-primary)] space-y-3 animate-in fade-in duration-200">
               <div className="flex justify-between items-center border-b border-white/5 pb-2">
                 <span className="font-bold text-white">System Notifications</span>
                 <button 
