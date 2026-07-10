@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SaiOS - AI Study Operating System",
+  title: "AetherOS - AI Study Operating System",
   description: "Premium, AI-powered Personal Productivity and Dual Track Prep Workspace",
 };
 

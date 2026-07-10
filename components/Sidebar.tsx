@@ -70,14 +70,14 @@ export default function Sidebar({ currentView, setView, collapsed, setCollapsed 
           {!collapsed && (
             <div className="flex items-center gap-2 pl-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center font-bold text-white shadow-lg">
-                S
+                A
               </div>
-              <span className="text-xl font-bold tracking-wider gradient-text font-sans">SaiOS</span>
+              <span className="text-xl font-bold tracking-wider gradient-text font-sans">AetherOS</span>
             </div>
           )}
           {collapsed && (
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center font-bold text-white shadow-lg mx-auto">
-              S
+              A
             </div>
           )}
           <button 
@@ -150,7 +150,7 @@ export default function Sidebar({ currentView, setView, collapsed, setCollapsed 
         <button
           onClick={() => {
             if (confirm('Are you sure you want to log out of your study workspace?')) {
-              localStorage.removeItem('saios_current_user');
+              localStorage.removeItem('aetheros_current_user');
               window.location.reload();
             }
           }}

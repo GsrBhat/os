@@ -37,7 +37,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
     }
 
     // Get current users from localStorage
-    const usersStr = localStorage.getItem('saios_users') || '[]';
+    const usersStr = localStorage.getItem('aetheros_users') || '[]';
     const users = JSON.parse(usersStr) as { username: string; password: string }[];
 
     if (isSignUp) {
@@ -55,7 +55,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
 
       // Create new user account
       users.push({ username: trimmedUsername, password: trimmedPassword });
-      localStorage.setItem('saios_users', JSON.stringify(users));
+      localStorage.setItem('aetheros_users', JSON.stringify(users));
 
       // Trigger login success
       onLoginSuccess(trimmedUsername);
@@ -63,11 +63,11 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
       // Find matching user
       const user = users.find(u => u.username === trimmedUsername && u.password === trimmedPassword);
       if (!user) {
-        // Fallback convenience account for sai/sai
-        if (trimmedUsername === 'sai' && trimmedPassword === 'sai') {
-          users.push({ username: 'sai', password: 'sai' });
-          localStorage.setItem('saios_users', JSON.stringify(users));
-          onLoginSuccess('sai');
+        // Fallback convenience accounts
+        if ((trimmedUsername === 'sai' && trimmedPassword === 'sai') || (trimmedUsername === 'guest' && trimmedPassword === 'guest')) {
+          users.push({ username: trimmedUsername, password: trimmedPassword });
+          localStorage.setItem('aetheros_users', JSON.stringify(users));
+          onLoginSuccess(trimmedUsername);
           return;
         }
         setError('Invalid username or password.');
@@ -89,10 +89,10 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
       {/* Floating System Brand Card */}
       <div className="mb-6 flex flex-col items-center select-none text-center">
         <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center font-extrabold text-white text-xl shadow-xl shadow-purple-500/10 animate-bounce">
-          S
+          A
         </div>
         <h1 className="text-2xl font-black tracking-widest text-white mt-4 font-mono">
-          SAI<span className="text-purple-400">OS</span>
+          AETHER<span className="text-purple-400">OS</span>
         </h1>
         <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-sans mt-1">
           Personal AI Study Operating System

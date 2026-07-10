@@ -33,25 +33,25 @@ export default function Home() {
 
   // Check onboarding status and auth from LocalStorage on mount
   useEffect(() => {
-    const user = localStorage.getItem('saios_current_user');
+    const user = localStorage.getItem('aetheros_current_user');
     setCurrentUser(user);
 
-    const onboardedKey = user ? `saios_onboarded_${user}` : 'saios_onboarded';
+    const onboardedKey = user ? `aetheros_onboarded_${user}` : 'aetheros_onboarded';
     const onboarded = localStorage.getItem(onboardedKey);
     setIsOnboarded(onboarded === 'true');
     setIsAuthChecked(true);
   }, []);
 
   const handleLoginSuccess = (username: string) => {
-    localStorage.setItem('saios_current_user', username);
+    localStorage.setItem('aetheros_current_user', username);
     window.location.reload(); // Reload triggers new scoped Dexie DB connection
   };
 
   const handleOnboardingComplete = () => {
     if (currentUser) {
-      localStorage.setItem(`saios_onboarded_${currentUser}`, 'true');
+      localStorage.setItem(`aetheros_onboarded_${currentUser}`, 'true');
     } else {
-      localStorage.setItem('saios_onboarded', 'true');
+      localStorage.setItem('aetheros_onboarded', 'true');
     }
     setIsOnboarded(true);
   };

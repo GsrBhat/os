@@ -26,6 +26,15 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
     { id: 3, text: '🎓 Revision alert: Python core decorators scheduled today', read: false },
   ]);
 
+  const [userName, setUserName] = useState<string>('User');
+
+  useEffect(() => {
+    const user = localStorage.getItem('aetheros_current_user');
+    if (user) {
+      setUserName(user.charAt(0).toUpperCase() + user.slice(1));
+    }
+  }, []);
+
   const toggleTheme = () => {
     const nextTheme = settings.theme === 'light' ? 'midnight' : 'light';
     updateSettings({ theme: nextTheme });
@@ -94,9 +103,9 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
     <header className="glass-panel w-full px-6 py-4 flex items-center justify-between gap-4 mb-6 shadow-sm">
       {/* View Title & Greetings */}
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-white">{viewTitles[currentView] || 'SaiOS'}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-white">{viewTitles[currentView] || 'AetherOS'}</h1>
         <p className="text-xs text-zinc-400 mt-0.5">
-          {greeting}, Sai 👋 <span className="mx-1.5 text-zinc-600">|</span> {dateStr}
+          {greeting}, {userName} 👋 <span className="mx-1.5 text-zinc-600">|</span> {dateStr}
         </p>
       </div>
 

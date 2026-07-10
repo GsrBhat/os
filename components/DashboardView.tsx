@@ -40,12 +40,24 @@ export default function DashboardView({ setView, onAddTaskClick }: DashboardView
   const [totals, setTotals] = useState({ totalHours: 0, avgFocus: 0, consistency: 0 });
   const [prepScore, setPrepScore] = useState(0);
 
+  const [customTargetDate, setCustomTargetDate] = useState('2026-08-01');
+  const [userName, setUserName] = useState('User');
+
+  useEffect(() => {
+    const user = localStorage.getItem('aetheros_current_user') || 'default';
+    const savedDate = localStorage.getItem(`aetheros_target_date_${user}`);
+    if (savedDate) {
+      setCustomTargetDate(savedDate);
+    }
+    setUserName(user.charAt(0).toUpperCase() + user.slice(1));
+  }, []);
+
   // Countdowns details (Toned down gradients to match muted aesthetic)
   const countdowns = [
-    { title: 'GATE ECE 2027', date: '2027-02-06', color: 'from-purple-500/10 to-indigo-500/5 border-purple-500/20 text-purple-300' },
+    { title: 'My Target Plan', date: customTargetDate, color: 'from-purple-500/10 to-indigo-500/5 border-purple-500/20 text-purple-300' },
     { title: 'Placement Season', date: '2026-08-01', color: 'from-blue-500/10 to-cyan-500/5 border-blue-500/20 text-blue-300' },
     { title: 'IELTS Goal', date: '2026-10-20', color: 'from-emerald-500/10 to-teal-500/5 border-emerald-500/20 text-emerald-300' },
-    { title: 'Internship Goal', date: '2026-11-15', color: 'from-rose-500/10 to-pink-500/5 border-rose-500/20 text-rose-300' }
+    { title: 'GATE ECE 2027', date: '2027-02-06', color: 'from-rose-500/10 to-pink-500/5 border-rose-500/20 text-rose-300' }
   ];
 
   const calculateDaysLeft = (targetDateStr: string) => {
@@ -141,7 +153,7 @@ export default function DashboardView({ setView, onAddTaskClick }: DashboardView
       <div className="glass-panel p-5 border border-purple-500/10 bg-gradient-to-r from-purple-500/[0.02] to-blue-500/[0.01]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Good Evening, Sai 👋</h2>
+            <h2 className="text-xl font-bold text-white tracking-tight">Good Evening, {userName} 👋</h2>
             <div className="flex items-center gap-3 text-xs text-zinc-400 mt-1 flex-wrap font-sans">
               <span className="flex items-center gap-1 text-orange-400">
                 <Flame size={14} className="fill-orange-400/20" />

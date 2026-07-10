@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { db } from '@/lib/db';
 import { 
@@ -13,13 +13,40 @@ import {
   Trash2, 
   EyeOff, 
   Eye,
-  Sliders
+  Sliders,
+  CalendarRange
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function SettingsView() {
   const { settings, updateSettings, addXP } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Preparation Plan Details
+  const [prepDays, setPrepDays] = useState(211);
+  const [targetDate, setTargetDate] = useState('2026-08-01');
+  const [dailyHours, setDailyHours] = useState(6);
+
+  useEffect(() => {
+    const user = localStorage.getItem('aetheros_current_user') || 'default';
+    const savedDays = localStorage.getItem(`aetheros_prep_days_${user}`);
+    const savedDate = localStorage.getItem(`aetheros_target_date_${user}`);
+    const savedHours = localStorage.getItem(`aetheros_daily_hours_${user}`);
+
+    if (savedDays) setPrepDays(parseInt(savedDays, 10));
+    if (savedDate) setTargetDate(savedDate);
+    if (savedHours) setDailyHours(parseInt(savedHours, 10));
+  }, []);
+
+  const handleUpdatePlan = (days: number, date: string, hours: number) => {
+    const user = localStorage.getItem('aetheros_current_user') || 'default';
+    setPrepDays(days);
+    setTargetDate(date);
+    setDailyHours(hours);
+    localStorage.setItem(`aetheros_prep_days_${user}`, days.toString());
+    localStorage.setItem(`aetheros_target_date_${user}`, date);
+    localStorage.setItem(`aetheros_daily_hours_${user}`, hours.toString());
+  };
 
   // Theme presets
   const themes = [
@@ -50,7 +77,7 @@ export default function SettingsView() {
       
       const link = document.createElement('a');
       link.href = url;
-      link.download = `saios_backup_${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `aetheros_backup_${new Date().toISOString().split('T')[0]}.json`;
       link.click();
       
       addXP(10); // +10 XP for running backup maintenance
@@ -76,7 +103,6 @@ export default function SettingsView() {
         }
 
         if (confirm('Importing this file will overwrite all existing local database data. Proceed?')) {
-          // Clear all Dexie tables
           await db.tasks.clear();
           await db.dailyLogs.clear();
           await db.subjects.clear();
@@ -98,11 +124,11 @@ export default function SettingsView() {
           if (data.pomodoroLogs.length) await db.pomodoroLogs.bulkAdd(data.pomodoroLogs);
           if (data.goals.length) await db.goals.bulkAdd(data.goals);
 
-          alert('SaiOS database successfully restored from JSON file.');
-          window.location.reload(); // Refresh to reload state
+          alert('AetherOS database successfully restored from JSON file.');
+          window.location.reload();
         }
       } catch (err) {
-        alert('Failed to restore. Please ensure this is a valid SaiOS JSON backup file.');
+        alert('Failed to restore. Please ensure this is a valid AetherOS JSON backup file.');
       }
     };
     reader.readAsText(file);
@@ -121,7 +147,16 @@ export default function SettingsView() {
       await db.pomodoroLogs.clear();
       await db.goals.clear();
       
-      localStorage.clear();
+      const user = localStorage.getItem('aetheros_current_user') || 'default';
+      localStorage.removeItem(`aetheros_onboarded_${user}`);
+      localStorage.removeItem(`aetheros_xp_${user}`);
+      localStorage.removeItem(`aetheros_level_${user}`);
+      localStorage.removeItem(`aetheros_coins_${user}`);
+      localStorage.removeItem(`aetheros_badges_${user}`);
+      localStorage.removeItem(`aetheros_prep_days_${user}`);
+      localStorage.removeItem(`aetheros_target_date_${user}`);
+      localStorage.removeItem(`aetheros_daily_hours_${user}`);
+      
       alert('All progress has been reset. Reloading workspace...');
       window.location.reload();
     }
@@ -155,6 +190,68 @@ export default function SettingsView() {
                 <div className={`w-4 h-4 rounded-full border border-white/10 ${theme.class}`} />
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Dynamic Study Plan Deadline Editor */}
+        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] space-y-4">
+          <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+            <CalendarRange size={16} className="text-purple-400" />
+            <span>Study Plan & Timelines</span>
+          </h3>
+
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Days to Prepare</label>
+                <input
+                  type="number"
+                  min="10"
+                  max="2000"
+                  value={prepDays}
+                  onChange={(e) => {
+                    const days = parseInt(e.target.value) || 30;
+                    const d = new Date();
+                    d.setDate(d.getDate() + days);
+                    const newDate = d.toISOString().split('T')[0];
+                    handleUpdatePlan(days, newDate, dailyHours);
+                  }}
+                  className="w-full p-2.5 rounded-lg border border-white/5 bg-zinc-950 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Target Exam Date</label>
+                <input
+                  type="date"
+                  value={targetDate}
+                  onChange={(e) => {
+                    const date = e.target.value;
+                    const target = new Date(date);
+                    const today = new Date();
+                    const diffTime = target.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    handleUpdatePlan(diffDays > 0 ? diffDays : 10, date, dailyHours);
+                  }}
+                  className="w-full p-2.5 rounded-lg border border-white/5 bg-zinc-950 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Daily Target Study Hours</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="2"
+                  max="12"
+                  value={dailyHours}
+                  onChange={(e) => handleUpdatePlan(prepDays, targetDate, parseInt(e.target.value))}
+                  className="w-full accent-purple-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold font-mono text-purple-400 shrink-0 w-12">{dailyHours} hours</span>
+              </div>
+            </div>
           </div>
         </div>
 
