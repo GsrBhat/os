@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Lock, User, LogIn, UserPlus, Sparkles, AlertCircle, Mail, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, User, LogIn, UserPlus, Sparkles, AlertCircle, Mail, Eye, EyeOff, MailOpen, Trash } from 'lucide-react';
 
 interface AuthViewProps {
   onLoginSuccess: (username: string) => void;
@@ -17,6 +17,61 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
   const [mailSentSuccess, setMailSentSuccess] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Simulated Verification Email Modal State
+  const [pendingVerificationMail, setPendingVerificationMail] = useState<{
+    to: string;
+    username: string;
+  } | null>(null);
+
+  // Saved Profiles State
+  const [savedAccounts, setSavedAccounts] = useState<{ username: string; email?: string }[]>([]);
+
+  // Load accounts on mount
+  useEffect(() => {
+    loadSavedAccounts();
+  }, []);
+
+  const loadSavedAccounts = () => {
+    const usersStr = localStorage.getItem('aetheros_users') || '[]';
+    const users = JSON.parse(usersStr) as { username: string; email?: string }[];
+    
+    // Seed default helper profiles if empty
+    if (users.length === 0) {
+      const defaultProfiles = [
+        { username: 'sai', email: 'sai@aetheros.edu', password: 'sai' },
+        { username: 'guest', email: 'guest@aetheros.dev', password: 'guest' }
+      ];
+      localStorage.setItem('aetheros_users', JSON.stringify(defaultProfiles));
+      setSavedAccounts(defaultProfiles);
+    } else {
+      setSavedAccounts(users);
+    }
+  };
+
+  const handleDeleteAccount = (usernameToDelete: string) => {
+    if (confirm(`Remove saved login credentials for "${usernameToDelete}" from this browser?`)) {
+      const usersStr = localStorage.getItem('aetheros_users') || '[]';
+      const users = JSON.parse(usersStr) as { username: string; email?: string; password: string }[];
+      const updated = users.filter(u => u.username !== usernameToDelete);
+      localStorage.setItem('aetheros_users', JSON.stringify(updated));
+      loadSavedAccounts();
+      
+      // Wipe corresponding scoped database data if desired
+      const activeUser = localStorage.getItem('aetheros_current_user');
+      if (activeUser === usernameToDelete) {
+        localStorage.removeItem('aetheros_current_user');
+      }
+    }
+  };
+
+  const handleClearAllAccounts = () => {
+    if (confirm('Are you sure you want to permanently clear all saved local user profiles on this browser?')) {
+      localStorage.setItem('aetheros_users', '[]');
+      setSavedAccounts([]);
+      localStorage.removeItem('aetheros_current_user');
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,24 +132,25 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
       // Create new user account
       users.push({ username: trimmedUsername, email: trimmedEmail, password: trimmedPassword });
       localStorage.setItem('aetheros_users', JSON.stringify(users));
+      loadSavedAccounts();
 
-      // Simulate sending confirmation email
+      // Trigger Simulated Outbox Modal
+      setPendingVerificationMail({
+        to: trimmedEmail,
+        username: trimmedUsername
+      });
+
+      // Also print details to developer console for inspection
       console.log(
         `%c[AetherOS SMTP Simulated Mailer]%c\nTo: ${trimmedEmail}\nSubject: Welcome to AetherOS - Confirm Workspace\nBody: Hello ${trimmedUsername},\nYour AetherOS workspace has been successfully created. Welcome aboard!\n---------------------------------------`,
         'color: #a855f7; font-weight: bold;',
         'color: #94a3b8;'
       );
-
-      // Display visual toast confirmation
-      setMailSentSuccess(`📧 Confirmation email sent to ${trimmedEmail}!`);
-      setTimeout(() => {
-        onLoginSuccess(trimmedUsername);
-      }, 2000);
     } else {
       // Find matching user (Login only requires Username and Password)
       const user = users.find(u => u.username === trimmedUsername && u.password === trimmedPassword);
       if (!user) {
-        // Fallback convenience accounts
+        // Fallback convenience accounts creation if missing
         if (trimmedUsername === 'sai' && trimmedPassword === 'sai') {
           const defaultEmail = 'sai@aetheros.edu';
           users.push({ username: 'sai', email: defaultEmail, password: 'sai' });
@@ -176,13 +232,6 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
             <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 text-xs flex items-start gap-2 animate-shake">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
               <span>{error}</span>
-            </div>
-          )}
-
-          {/* Success Mail Message */}
-          {mailSentSuccess && (
-            <div className="p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-xs flex items-start gap-2 animate-pulse">
-              <span>{mailSentSuccess}</span>
             </div>
           )}
 
@@ -285,6 +334,95 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
             : 'Enter credentials to open your private local IndexedDB environment.'}
         </div>
       </div>
+
+      {/* Saved Profiles List Card (Answer to: where to check login details) */}
+      {savedAccounts.length > 0 && (
+        <div className="w-full max-w-sm glass-panel p-5 border border-white/5 bg-zinc-900/60 mt-4 text-xs z-10 shadow-lg">
+          <h3 className="font-bold text-zinc-300 mb-3 flex items-center justify-between font-sans">
+            <span>Local Profiles on this Device</span>
+            <button 
+              onClick={handleClearAllAccounts}
+              className="text-[9px] text-red-400 hover:text-red-300 font-bold uppercase tracking-wider cursor-pointer"
+            >
+              Clear All
+            </button>
+          </h3>
+          <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+            {savedAccounts.map(acc => (
+              <div 
+                key={acc.username}
+                onClick={() => {
+                  setUsername(acc.username);
+                  setError('');
+                }}
+                className="flex items-center justify-between p-2.5 rounded-xl border border-white/5 bg-zinc-950/20 hover:bg-purple-500/5 hover:border-purple-500/20 transition-all cursor-pointer group"
+              >
+                <div>
+                  <span className="font-bold text-white group-hover:text-purple-400 transition-colors font-mono">{acc.username}</span>
+                  <span className="text-[10px] text-zinc-500 ml-2 font-sans">({acc.email || 'sai@aetheros.edu'})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteAccount(acc.username);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 p-1 transition-all rounded hover:bg-red-500/10 cursor-pointer"
+                  title="Remove Profile"
+                >
+                  <Trash size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Simulated Verification Email Modal */}
+      {pendingVerificationMail && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md glass-panel p-6 border border-purple-500/30 bg-zinc-900/90 shadow-[0_0_50px_rgba(168,85,247,0.15)] animate-in zoom-in-95 duration-200 text-xs">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                <MailOpen size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">AetherOS SMTP Mail Delivery</h3>
+                <p className="text-[10px] text-zinc-500 font-mono">Status: Delivered (Sandbox Simulation)</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 bg-zinc-950/50 p-4 rounded-xl border border-white/5 font-sans leading-relaxed text-zinc-300">
+              <p><strong>From:</strong> mail-service@aetheros.edu</p>
+              <p><strong>To:</strong> {pendingVerificationMail.to}</p>
+              <p><strong>Subject:</strong> Verify Your AetherOS Study Workspace</p>
+              <hr className="border-white/5" />
+              <p>Hello <strong className="text-purple-400 font-mono">{pendingVerificationMail.username}</strong>,</p>
+              <p>Your local AetherOS workspace database has been compiled and is ready for instantiation.</p>
+              <p>Please click the button below to confirm your registered email address and activate your study environment.</p>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => {
+                  const user = pendingVerificationMail.username;
+                  setPendingVerificationMail(null);
+                  onLoginSuccess(user);
+                }}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-purple-500/10 cursor-pointer text-center"
+              >
+                Verify & Launch Workspace
+              </button>
+              <button
+                onClick={() => setPendingVerificationMail(null)}
+                className="px-4 py-3 rounded-xl border border-white/5 bg-zinc-950/40 text-zinc-400 hover:text-white transition-colors text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
     </div>
   );
