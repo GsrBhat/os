@@ -32,7 +32,7 @@ interface DashboardViewProps {
 }
 
 export default function DashboardView({ setView, onAddTaskClick }: DashboardViewProps) {
-  const { activeWorkspaceId } = useStore();
+  const { activeWorkspaceId, addXP } = useStore();
   const todayStr = '2026-07-10'; // Local system date anchor
 
   // Scoped queries
@@ -304,6 +304,40 @@ export default function DashboardView({ setView, onAddTaskClick }: DashboardView
                   <p>Study duration: <strong className="text-purple-400 font-mono">{studyHours}h focus</strong></p>
                 </div>
               </div>
+
+              {/* Quick Daily Tracker Checklist (Tick/Untick Progress) */}
+              {todayTasks.length > 0 && (
+                <div className="mt-4 border-t border-white/5 pt-3 space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                  {todayTasks.map((task) => (
+                    <div key={task.id} className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-zinc-950/20 hover:bg-zinc-950/40 transition-colors">
+                      <div className="flex items-center gap-2 truncate">
+                        <button
+                          onClick={async () => {
+                            const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+                            await db.tasks.update(task.id!, { status: newStatus });
+                            if (newStatus === 'completed') addXP(15);
+                          }}
+                          className="text-zinc-500 hover:text-purple-400 transition-colors shrink-0"
+                        >
+                          <span className="w-4 h-4 rounded border border-white/10 flex items-center justify-center bg-zinc-900 text-white cursor-pointer">
+                            {task.status === 'completed' && <span className="w-2.5 h-2.5 bg-purple-500 rounded-sm" />}
+                          </span>
+                        </button>
+                        <span className={`text-[11px] truncate ${
+                          task.status === 'completed' ? 'line-through text-zinc-500' : 'text-zinc-300'
+                        }`}>
+                          {task.description}
+                        </span>
+                      </div>
+                      <span className={`text-[8px] uppercase px-1.5 py-0.5 rounded font-bold font-mono ${
+                        task.priority === 'high' ? 'bg-red-500/10 text-red-400' : 'bg-zinc-500/10 text-zinc-500'
+                      }`}>
+                        {task.priority}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <button 
               onClick={() => setView('planner')}

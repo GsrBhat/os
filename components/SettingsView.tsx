@@ -295,7 +295,7 @@ export default function SettingsView() {
           <div className="flex flex-col sm:flex-row gap-3">
             <button 
               onClick={handleExportBackup}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 text-xs font-bold text-white transition-all cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 text-xs font-bold text-white transition-all cursor-pointer"
             >
               <Download size={14} />
               <span>Export JSON Backup</span>
@@ -303,7 +303,7 @@ export default function SettingsView() {
 
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="flex-grow flex items-center justify-center gap-2 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition-all cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-transparent bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition-all cursor-pointer"
             >
               <Upload size={14} />
               <span>Import Backup file</span>
