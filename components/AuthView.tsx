@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Lock, User, LogIn, UserPlus, Sparkles, AlertCircle, Mail } from 'lucide-react';
+import { Lock, User, LogIn, UserPlus, Sparkles, AlertCircle, Mail, Eye, EyeOff } from 'lucide-react';
 
 interface AuthViewProps {
   onLoginSuccess: (username: string) => void;
@@ -15,6 +15,8 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [mailSentSuccess, setMailSentSuccess] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,12 +224,20 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/5 bg-zinc-950 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 font-mono"
+                className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-white/5 bg-zinc-950 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 font-mono"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                title={showPassword ? 'Hide Password' : 'Show Password'}
+              >
+                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
             </div>
           </div>
 
@@ -238,12 +248,20 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
                 <input
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/5 bg-zinc-950 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 font-mono"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-white/5 bg-zinc-950 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 font-mono"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                  title={showConfirmPassword ? 'Hide Password' : 'Show Password'}
+                >
+                  {showConfirmPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
               </div>
             </div>
           )}
