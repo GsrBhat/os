@@ -64,6 +64,7 @@ export default function Home() {
         setIsAuthChecked(true);
       });
     } else {
+      setIsOnboarded(false);
       setIsAuthChecked(true);
     }
   }, []);
