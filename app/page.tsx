@@ -18,10 +18,11 @@ import AIAssistantView from '@/components/AIAssistantView';
 import AuthView from '@/components/AuthView';
 import SettingsView from '@/components/SettingsView';
 import { useStore } from '@/lib/store';
+import { db } from '@/lib/db';
 import { LayoutDashboard, CheckSquare, Calendar, BarChart3, Sparkles } from 'lucide-react';
 
 export default function Home() {
-  const { seedCompleted } = useStore();
+  const { activeWorkspaceId } = useStore();
   const [currentView, setView] = useState<ViewType>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -43,15 +44,28 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Check onboarding status and auth from LocalStorage on mount
+  // Check onboarding status and auth from LocalStorage and DB on mount
   useEffect(() => {
     const user = localStorage.getItem('aetheros_current_user');
     setCurrentUser(user);
 
-    const onboardedKey = user ? `aetheros_onboarded_${user}` : 'aetheros_onboarded';
-    const onboarded = localStorage.getItem(onboardedKey);
-    setIsOnboarded(onboarded === 'true');
-    setIsAuthChecked(true);
+    if (user) {
+      db.workspaces.toArray().then(workspaces => {
+        if (workspaces.length === 0) {
+          setIsOnboarded(false);
+        } else {
+          const onboardedKey = `aetheros_onboarded_${user}`;
+          const onboarded = localStorage.getItem(onboardedKey);
+          setIsOnboarded(onboarded === 'true');
+        }
+        setIsAuthChecked(true);
+      }).catch(() => {
+        setIsOnboarded(false);
+        setIsAuthChecked(true);
+      });
+    } else {
+      setIsAuthChecked(true);
+    }
   }, []);
 
   const handleLoginSuccess = (username: string) => {

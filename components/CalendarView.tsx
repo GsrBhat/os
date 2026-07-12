@@ -8,8 +8,8 @@ import { useStore } from '@/lib/store';
 
 export default function CalendarView() {
   const { addXP } = useStore();
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(6); // 0-indexed: July is 6
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth()); // 0-indexed
 
   // Form states for historical editor modal
   const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);

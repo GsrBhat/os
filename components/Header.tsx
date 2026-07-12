@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Clock, Play, Pause, CheckCircle, Search, Sparkles, Bell, Sun, Moon, Settings, LogOut } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { db, type Task } from '@/lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 interface HeaderProps {
   currentView: string;
@@ -12,7 +13,7 @@ interface HeaderProps {
 }
 
 export default function Header({ currentView, setView, onSearchClick }: HeaderProps) {
-  const { activeTimer, pauseTaskTimer, stopTaskTimer, settings, updateSettings } = useStore();
+  const { activeTimer, pauseTaskTimer, stopTaskTimer, settings, updateSettings, activeWorkspaceId } = useStore();
   const [time, setTime] = useState<string>('');
   const [dateStr, setDateStr] = useState<string>('');
   const [greeting, setGreeting] = useState<string>('Hello');
@@ -32,6 +33,10 @@ export default function Header({ currentView, setView, onSearchClick }: HeaderPr
   const [toastMsg, setToastMsg] = useState<string>('');
   const [isMobile, setIsMobile] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+
+  // Fetch workspaces list
+  const workspaces = useLiveQuery(() => db.workspaces.toArray()) || [];
+  const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId) || workspaces[0];
 
   // Resize listener for responsive layout checks
   useEffect(() => {
@@ -164,7 +169,14 @@ export default function Header({ currentView, setView, onSearchClick }: HeaderPr
     <header className="glass-panel w-full px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-2 md:gap-4 mb-4 md:mb-6 shadow-sm">
       {/* View Title & Greetings */}
       <div>
-        <h1 className="text-lg md:text-xl font-bold tracking-tight text-white">{viewTitles[currentView] || 'AetherOS'}</h1>
+        <h1 className="text-lg md:text-xl font-bold tracking-tight text-white flex items-center gap-2 flex-wrap">
+          <span>{viewTitles[currentView] || 'AetherOS'}</span>
+          {activeWorkspace && (
+            <span className="text-[10px] bg-purple-500/10 border border-purple-500/20 text-purple-400 px-2 py-0.5 rounded-lg font-normal font-sans">
+              {activeWorkspace.name}
+            </span>
+          )}
+        </h1>
         <p className="text-[10px] md:text-xs text-zinc-400 mt-0.5">
           {greeting}, {userName} 👋<span className="hidden sm:inline"><span className="mx-1.5 text-zinc-600">|</span>{dateStr}</span>
         </p>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { db, type Task, type DailyLog, type Subject, type Topic, type Mistake, type Habit, type PomodoroLog, type Goal } from './db';
+import { db, runDatabaseMigration } from './db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
 interface StoreContextProps {
@@ -21,7 +21,10 @@ interface StoreContextProps {
     geminiApiKey: string;
   };
   updateSettings: (newSettings: Partial<StoreContextProps['settings']>) => void;
-  seedCompleted: boolean;
+  activeWorkspaceId: number | null;
+  setActiveWorkspaceId: (id: number | null) => void;
+  changeWorkspace: (id: number) => void;
+  triggerMigration: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextProps | undefined>(undefined);
@@ -39,14 +42,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [level, setLevel] = useState<number>(1);
   const [coins, setCoins] = useState<number>(0);
   const [badges, setBadges] = useState<string[]>([]);
-  const [seedCompleted, setSeedCompleted] = useState<boolean>(false);
   const [activeTimer, setActiveTimer] = useState<StoreContextProps['activeTimer']>(null);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null);
   const [settings, setSettings] = useState<StoreContextProps['settings']>({
     theme: 'midnight',
     animations: true,
     accentColor: 'blue',
     geminiApiKey: '',
   });
+
+  // Run Database Migrations on startup
+  const triggerMigration = async () => {
+    const user = localStorage.getItem('aetheros_current_user') || 'default';
+    await runDatabaseMigration(user);
+    
+    // Resolve active workspace after migrations
+    const workspaces = await db.workspaces.toArray();
+    if (workspaces.length > 0) {
+      const savedActiveWs = localStorage.getItem(`aetheros_active_workspace_${user}`);
+      const activeWsId = savedActiveWs ? parseInt(savedActiveWs, 10) : workspaces[0].id!;
+      setActiveWorkspaceId(activeWsId);
+    }
+  };
+
+  useEffect(() => {
+    const user = localStorage.getItem('aetheros_current_user') || 'default';
+    triggerMigration();
+  }, []);
 
   // Load User Info & Settings from LocalStorage (Scoped per user for AetherOS)
   useEffect(() => {
@@ -159,73 +181,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // Seed Data Initializer (Syllabus outline with 0% progress)
-  useEffect(() => {
-    const seedDatabase = async () => {
-      const subjectCount = await db.subjects.count();
-      if (subjectCount === 0) {
-        // Seed Subjects with 0% Initial Progress
-        const initialSubjects: Subject[] = [
-          // Placements
-          { id: 'placement-python', name: 'Python Core', category: 'placement', completionPercent: 0, topicsDone: 0, topicsRemaining: 6, revisionCount: 0, confidence: 1, difficulty: 'medium', totalHours: 0 },
-          { id: 'placement-dsa', name: 'Data Structures & Algorithms', category: 'placement', completionPercent: 0, topicsDone: 0, topicsRemaining: 4, revisionCount: 0, confidence: 1, difficulty: 'hard', totalHours: 0 },
-          { id: 'placement-aptitude', name: 'Aptitude & Logical Reasoning', category: 'placement', completionPercent: 0, topicsDone: 0, topicsRemaining: 0, revisionCount: 0, confidence: 1, difficulty: 'medium', totalHours: 0 },
-          { id: 'placement-resume', name: 'Resume & Portfolio Building', category: 'placement', completionPercent: 0, topicsDone: 0, topicsRemaining: 1, revisionCount: 0, confidence: 1, difficulty: 'easy', totalHours: 0 },
-          { id: 'placement-interview', name: 'Mock Interviews & Behavioural', category: 'placement', completionPercent: 0, topicsDone: 0, topicsRemaining: 4, revisionCount: 0, confidence: 1, difficulty: 'hard', totalHours: 0 },
-
-          // GATE ECE
-          { id: 'gate-networks', name: 'Network Theory', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 6, revisionCount: 0, confidence: 1, difficulty: 'easy', totalHours: 0 },
-          { id: 'gate-signals', name: 'Signals & Systems', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 5, revisionCount: 0, confidence: 1, difficulty: 'medium', totalHours: 0 },
-          { id: 'gate-digital', name: 'Digital Electronics', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 5, revisionCount: 0, confidence: 1, difficulty: 'easy', totalHours: 0 },
-          { id: 'gate-analog', name: 'Analog Electronics', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 7, revisionCount: 0, confidence: 1, difficulty: 'hard', totalHours: 0 },
-          { id: 'gate-edc', name: 'Electronic Devices (EDC)', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 7, revisionCount: 0, confidence: 1, difficulty: 'hard', totalHours: 0 },
-          { id: 'gate-control', name: 'Control Systems', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 6, revisionCount: 0, confidence: 1, difficulty: 'medium', totalHours: 0 },
-          { id: 'gate-communications', name: 'Communication Systems', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 6, revisionCount: 0, confidence: 1, difficulty: 'hard', totalHours: 0 },
-          { id: 'gate-emtl', name: 'Electromagnetics (EMTL)', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 7, revisionCount: 0, confidence: 1, difficulty: 'hard', totalHours: 0 },
-          { id: 'gate-maths', name: 'Engineering Mathematics', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 7, revisionCount: 0, confidence: 1, difficulty: 'medium', totalHours: 0 },
-          { id: 'gate-aptitude', name: 'General Aptitude', category: 'gate', completionPercent: 0, topicsDone: 0, topicsRemaining: 6, revisionCount: 0, confidence: 1, difficulty: 'easy', totalHours: 0 },
-
-          // Language
-          { id: 'lang-ielts', name: 'IELTS Academic Prep', category: 'language', completionPercent: 0, topicsDone: 0, topicsRemaining: 4, revisionCount: 0, confidence: 1, difficulty: 'medium', totalHours: 0 },
-          { id: 'lang-toefl', name: 'TOEFL Prep', category: 'language', completionPercent: 0, topicsDone: 0, topicsRemaining: 4, revisionCount: 0, confidence: 1, difficulty: 'medium', totalHours: 0 }
-        ];
-        await db.subjects.bulkAdd(initialSubjects);
-
-        // Seed Topics
-        const initialTopics: Topic[] = [
-          // Network Theory
-          { subjectId: 'gate-networks', moduleName: 'DC Circuits', chapterName: 'Basic Laws', name: 'Ohm\'s Law & Kirchhoff\'s Laws', isCompleted: false, revisionCount: 0, difficulty: 'easy', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-          { subjectId: 'gate-networks', moduleName: 'DC Circuits', chapterName: 'Nodal & Mesh Analysis', name: 'Nodal Analysis with Dependent Sources', isCompleted: false, revisionCount: 0, difficulty: 'medium', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-          { subjectId: 'gate-networks', moduleName: 'DC Circuits', chapterName: 'Nodal & Mesh Analysis', name: 'Mesh Analysis with Supermesh', isCompleted: false, revisionCount: 0, difficulty: 'medium', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-          { subjectId: 'gate-networks', moduleName: 'Theorems', chapterName: 'Network Theorems', name: 'Thevenin\'s & Norton\'s Theorems', isCompleted: false, revisionCount: 0, difficulty: 'medium', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-          { subjectId: 'gate-networks', moduleName: 'Theorems', chapterName: 'Network Theorems', name: 'Maximum Power Transfer Theorem', isCompleted: false, revisionCount: 0, difficulty: 'easy', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-          { subjectId: 'gate-networks', moduleName: 'Transients', chapterName: 'Transient Analysis', name: 'First-order RC and RL transient response', isCompleted: false, revisionCount: 0, difficulty: 'hard', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-
-          // DSA
-          { subjectId: 'placement-dsa', moduleName: 'Data Structures', chapterName: 'Arrays', name: 'Two-Pointer Technique', isCompleted: false, revisionCount: 0, difficulty: 'medium', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-          { subjectId: 'placement-dsa', moduleName: 'Data Structures', chapterName: 'Linked Lists', name: 'Reverse a Linked List', isCompleted: false, revisionCount: 0, difficulty: 'easy', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-          { subjectId: 'placement-dsa', moduleName: 'Algorithms', chapterName: 'Sorting', name: 'Quick Sort & Merge Sort', isCompleted: false, revisionCount: 0, difficulty: 'medium', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-          { subjectId: 'placement-dsa', moduleName: 'Algorithms', chapterName: 'Dynamic Programming', name: '0/1 Knapsack Problem', isCompleted: false, revisionCount: 0, difficulty: 'hard', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-
-          // IELTS
-          { subjectId: 'lang-ielts', moduleName: 'Writing', chapterName: 'Task 2', name: 'Essay Structure & Argumentation', isCompleted: false, revisionCount: 0, difficulty: 'medium', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 },
-          { subjectId: 'lang-ielts', moduleName: 'Speaking', chapterName: 'Part 2', name: 'Cue Card Speeches (2 Minutes)', isCompleted: false, revisionCount: 0, difficulty: 'medium', confidence: 1, notes: '', mistakes: '', resources: '', questionsSolved: 0 }
-        ];
-        await db.topics.bulkAdd(initialTopics);
-
-        // Seed Goals with 0% progress
-        const initialGoals: Goal[] = [
-          { title: 'GATE 2027 ECE - Under AIR 100', category: 'gate', deadline: '2027-02-05', progress: 0, milestones: [{ name: 'Syllabus Coverage 100%', completed: false }, { name: 'Previous Year Questions (30 Yrs)', completed: false }, { name: 'Full Test Series (>75/100)', completed: false }] },
-          { title: 'Placement Offer at Product Company (>20 LPA)', category: 'placement', deadline: '2027-01-15', progress: 0, milestones: [{ name: 'Striver SDE Sheet Completion', completed: false }, { name: '3 Core Full-stack Projects', completed: false }, { name: 'Mock Interviews (10)', completed: false }] },
-          { title: 'IELTS Band 8.0 Overall', category: 'language', deadline: '2026-10-20', progress: 0, milestones: [{ name: 'Practice 20 mock exams', completed: false }, { name: 'Score >=8 in Listening/Reading consistently', completed: false }] }
-        ];
-        await db.goals.bulkAdd(initialGoals);
-      }
-      setSeedCompleted(true);
-    };
-
-    seedDatabase();
-  }, []);
+  const changeWorkspace = (id: number) => {
+    const user = localStorage.getItem('aetheros_current_user') || 'default';
+    setActiveWorkspaceId(id);
+    localStorage.setItem(`aetheros_active_workspace_${user}`, id.toString());
+  };
 
   return (
     <StoreContext.Provider
@@ -241,7 +201,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         stopTaskTimer,
         settings,
         updateSettings,
-        seedCompleted,
+        activeWorkspaceId,
+        setActiveWorkspaceId,
+        changeWorkspace,
+        triggerMigration
       }}
     >
       {children}

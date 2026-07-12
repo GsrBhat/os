@@ -27,11 +27,18 @@ interface PlannerViewProps {
 
 export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: PlannerViewProps) {
   const todayStr = '2026-07-10'; // Core current date
-  const { activeTimer, startTaskTimer, pauseTaskTimer, stopTaskTimer, addXP } = useStore();
+  const { activeWorkspaceId, activeTimer, startTaskTimer, pauseTaskTimer, stopTaskTimer, addXP } = useStore();
 
-  // Load database tasks for today
-  const tasks = useLiveQuery(() => db.tasks.where('date').equals(todayStr).toArray(), []);
-  const subjects = useLiveQuery(() => db.subjects.toArray(), []);
+  // Load database tasks for today filtered by workspace
+  const tasks = useLiveQuery(() => 
+    db.tasks.where('date').equals(todayStr).and(t => t.workspaceId === activeWorkspaceId).toArray(),
+    [activeWorkspaceId]
+  ) || [];
+
+  const subjects = useLiveQuery(() => 
+    db.subjects.where('workspaceId').equals(activeWorkspaceId || 0).toArray(),
+    [activeWorkspaceId]
+  ) || [];
 
   // Form state
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -41,7 +48,6 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
   const [timeSlot, setTimeSlot] = useState('09:00 - 10:00');
   const [estDuration, setEstDuration] = useState(60);
   const [isPinned, setIsPinned] = useState(false);
-  const [isRecurring, setIsRecurring] = useState(false);
 
   // Expander per task
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
@@ -49,43 +55,40 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
   const handleOpenAddModal = () => {
     setEditingTask(null);
     setDescription('');
-    setSelectedSubject(subjects?.[0]?.id || 'placement-dsa');
+    setSelectedSubject(subjects?.[0]?.id?.toString() || '');
     setPriority('medium');
     setTimeSlot('09:00 - 10:00');
     setEstDuration(60);
     setIsPinned(false);
-    setIsRecurring(false);
     setShowAddTaskModal(true);
   };
 
   const handleOpenEditModal = (task: Task) => {
     setEditingTask(task);
     setDescription(task.description);
-    setSelectedSubject(task.subject);
+    setSelectedSubject(task.subjectId?.toString() || '');
     setPriority(task.priority);
-    setTimeSlot(task.timeSlot);
+    setTimeSlot(task.timeSlot || '09:00 - 10:00');
     setEstDuration(task.estimatedDuration);
     setIsPinned(task.isPinned);
-    setIsRecurring(task.isRecurring);
     setShowAddTaskModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const taskData: Omit<Task, 'id'> = {
+      workspaceId: activeWorkspaceId || 1,
       date: todayStr,
       description,
-      subject: selectedSubject,
+      subjectId: selectedSubject ? Number(selectedSubject) : undefined,
       priority,
       timeSlot,
       estimatedDuration: estDuration,
       actualDuration: editingTask?.actualDuration || 0,
       status: editingTask?.status || 'pending',
       notes: editingTask?.notes || '',
-      tags: editingTask?.tags || [selectedSubject.split('-')[1] || 'study'],
-      revisionCount: editingTask?.revisionCount || 0,
-      isPinned,
-      isRecurring
+      tags: editingTask?.tags || ['study'],
+      isPinned
     };
 
     if (editingTask && editingTask.id) {
@@ -136,7 +139,7 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
         {tasks && tasks.length > 0 ? (
           tasks.map((task) => {
             const isExpanded = expandedTaskId === task.id;
-            const subjectObj = subjects?.find(s => s.id === task.subject);
+            const subjectObj = subjects?.find(s => s.id === task.subjectId);
             const isTaskTimerActive = activeTimer?.taskId === task.id;
 
             return (
@@ -180,9 +183,11 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
 
                       {/* Time slot and durations */}
                       <div className="flex items-center gap-3 text-[10px] text-zinc-500 font-mono mt-1 flex-wrap">
-                        <span className="bg-white/5 px-2 py-0.5 rounded text-zinc-400">
-                          {task.timeSlot}
-                        </span>
+                        {task.timeSlot && (
+                          <span className="bg-white/5 px-2 py-0.5 rounded text-zinc-400">
+                            {task.timeSlot}
+                          </span>
+                        )}
                         <span>Est: {task.estimatedDuration}m</span>
                         {task.actualDuration > 0 && (
                           <span className="text-purple-400 font-bold">Act: {task.actualDuration}m</span>
@@ -278,45 +283,26 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
                         rows={2}
                       />
                     </div>
-                    <div className="flex gap-4 flex-wrap font-mono text-[10px]">
-                      <div>
-                        <span className="text-zinc-500">Tags: </span>
-                        {task.tags.map((tag, i) => (
-                          <span key={i} className="bg-white/5 px-2 py-0.5 rounded text-zinc-300 mr-1.5">#{tag}</span>
-                        ))}
-                      </div>
-                      <div>
-                        <span className="text-zinc-500">Revision Count: </span>
-                        <span className="text-purple-400 font-bold">{task.revisionCount} times</span>
-                      </div>
-                      {task.isRecurring && (
-                        <div>
-                          <span className="text-zinc-500">Recurrence: </span>
-                          <span className="text-blue-400">Weekly</span>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 )}
-
               </div>
             );
           })
         ) : (
-          <div className="glass-panel text-center py-12 border border-dashed border-white/5">
-            <AlertCircle className="text-zinc-600 mx-auto mb-2" size={24} />
-            <p className="text-sm font-medium text-zinc-400">No study tasks logged for today.</p>
-            <p className="text-xs text-zinc-500 mt-1">Generate a fresh checklist or click &quot;Create Task&quot; above.</p>
+          <div className="text-center py-16 bg-white/[0.01] border border-white/5 rounded-2xl p-8 text-zinc-500 space-y-2 select-none">
+            <AlertCircle className="mx-auto text-zinc-600 animate-bounce" size={24} />
+            <p className="text-xs font-semibold text-zinc-400">No tasks scheduled for today.</p>
+            <p className="text-[10px] text-zinc-600 max-w-xs mx-auto">Create a new task to map out your lecture revisions and study goals.</p>
           </div>
         )}
       </div>
 
-      {/* Task Modal Overlay */}
+      {/* Add/Edit Task Modal Dialog overlay */}
       {showAddTaskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="glass-panel w-full max-w-md p-6 border border-white/10 bg-zinc-950 shadow-2xl flex flex-col">
-            <h3 className="text-base font-bold text-white mb-4">
-              {editingTask ? 'Edit Task Details' : 'Create Custom Study Task'}
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-md p-6 border border-white/10 bg-zinc-900/90 shadow-2xl relative">
+            <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wider font-mono">
+              {editingTask ? 'Edit Task details' : 'Create Custom Task'}
             </h3>
             
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -326,7 +312,7 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
                   type="text" 
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g. Solve 30 questions on Node equations"
+                  placeholder="e.g. Solve 5 problems on Floyd's detection"
                   required
                   className="w-full p-2.5 rounded-lg border border-white/5 bg-white/5 text-sm text-white focus:outline-none focus:border-purple-500 font-sans"
                 />
@@ -338,8 +324,9 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
                   <select 
                     value={selectedSubject}
                     onChange={(e) => setSelectedSubject(e.target.value)}
-                    className="w-full p-2.5 rounded-lg border border-white/5 bg-white/5 text-sm text-zinc-300 focus:outline-none focus:border-purple-500 font-sans"
+                    className="w-full p-2.5 rounded-lg border border-white/5 bg-white/5 text-sm text-zinc-300 focus:outline-none focus:border-purple-500 font-sans cursor-pointer"
                   >
+                    <option value="" className="bg-zinc-950 text-white">General / No Subject</option>
                     {subjects?.map((sub) => (
                       <option key={sub.id} value={sub.id} className="bg-zinc-950 text-white">
                         {sub.name}
@@ -353,7 +340,7 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
                   <select 
                     value={priority}
                     onChange={(e) => setPriority(e.target.value as any)}
-                    className="w-full p-2.5 rounded-lg border border-white/5 bg-white/5 text-sm text-zinc-300 focus:outline-none focus:border-purple-500 font-sans"
+                    className="w-full p-2.5 rounded-lg border border-white/5 bg-white/5 text-sm text-zinc-300 focus:outline-none focus:border-purple-500 font-sans cursor-pointer"
                   >
                     <option value="high" className="bg-zinc-950 text-white">High Priority</option>
                     <option value="medium" className="bg-zinc-950 text-white">Medium Priority</option>
@@ -380,7 +367,7 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
                   <input 
                     type="number" 
                     value={estDuration}
-                    onChange={(e) => setEstDuration(parseInt(e.target.value))}
+                    onChange={(e) => setEstDuration(parseInt(e.target.value) || 30)}
                     required
                     min="5"
                     className="w-full p-2.5 rounded-lg border border-white/5 bg-white/5 text-sm text-white focus:outline-none focus:border-purple-500 font-mono"
@@ -389,41 +376,30 @@ export default function PlannerView({ showAddTaskModal, setShowAddTaskModal }: P
               </div>
 
               <div className="flex gap-6 pt-2 text-xs font-sans text-zinc-300">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input 
                     type="checkbox" 
                     checked={isPinned}
                     onChange={(e) => setIsPinned(e.target.checked)}
-                    className="rounded accent-purple-500"
+                    className="accent-purple-500"
                   />
-                  <span>Pin to top</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={isRecurring}
-                    onChange={(e) => setIsRecurring(e.target.checked)}
-                    className="rounded accent-purple-500"
-                  />
-                  <span>Recurring Task</span>
+                  <span>Pin to top of list</span>
                 </label>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-2.5 pt-4 border-t border-white/5">
-                <button
-                  type="button"
+              <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+                <button 
+                  type="button" 
                   onClick={() => setShowAddTaskModal(false)}
-                  className="px-4 py-2 rounded-lg border border-white/5 hover:bg-white/5 text-xs font-bold text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-white/5 bg-transparent hover:bg-white/5 text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
-                <button
+                <button 
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition-colors cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition-colors cursor-pointer"
                 >
-                  {editingTask ? 'Save Changes' : 'Create Task'}
+                  {editingTask ? 'Update Task' : 'Save Task'}
                 </button>
               </div>
             </form>

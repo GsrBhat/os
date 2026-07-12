@@ -7,19 +7,24 @@ import {
   Trophy, 
   Flame, 
   Target, 
-  Award, 
   Activity, 
   Clock, 
   Zap, 
-  PlusCircle, 
+  Plus, 
   BrainCircuit, 
   CheckCircle2,
   Sparkles,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Settings,
+  BookOpen,
+  Trash,
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react';
-import { db, type Task, type DailyLog } from '@/lib/db';
+import { db, type Task, type DailyLog, type Goal, type Countdown } from '@/lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useStore } from '@/lib/store';
 
 interface DashboardViewProps {
   setView: (view: any) => void;
@@ -27,38 +32,113 @@ interface DashboardViewProps {
 }
 
 export default function DashboardView({ setView, onAddTaskClick }: DashboardViewProps) {
-  const todayStr = '2026-07-10'; // Set to local current date
+  const { activeWorkspaceId } = useStore();
+  const todayStr = '2026-07-10'; // Local system date anchor
 
-  // DB queries
-  const todayTasks = useLiveQuery(() => db.tasks.where('date').equals(todayStr).toArray());
-  const todayLog = useLiveQuery(() => db.dailyLogs.get(todayStr));
-  const allLogs = useLiveQuery(() => db.dailyLogs.toArray());
-  const subjects = useLiveQuery(() => db.subjects.toArray());
+  // Scoped queries
+  const todayTasks = useLiveQuery(() => 
+    db.tasks.where('date').equals(todayStr).and(t => t.workspaceId === activeWorkspaceId).toArray(),
+    [activeWorkspaceId]
+  ) || [];
 
-  // Streaks and summary metrics state
-  const [streak, setStreak] = useState({ current: 0, longest: 0 });
-  const [totals, setTotals] = useState({ totalHours: 0, avgFocus: 0, consistency: 0 });
-  const [prepScore, setPrepScore] = useState(0);
+  const todayLog = useLiveQuery(() => db.dailyLogs.get(todayStr)) || null;
+  
+  const allLogs = useLiveQuery(() => 
+    db.dailyLogs.toArray() // Logs are historical, we show overall stats in analytics
+  ) || [];
 
-  const [customTargetDate, setCustomTargetDate] = useState('2026-08-01');
+  const subjects = useLiveQuery(() => 
+    db.subjects.where('workspaceId').equals(activeWorkspaceId || 0).toArray(),
+    [activeWorkspaceId]
+  ) || [];
+
+  const dbGoals = useLiveQuery(() => 
+    db.goals.where('workspaceId').equals(activeWorkspaceId || 0).toArray(),
+    [activeWorkspaceId]
+  ) || [];
+
+  const dbCountdowns = useLiveQuery(() => 
+    db.countdowns.where('workspaceId').equals(activeWorkspaceId || 0).toArray(),
+    [activeWorkspaceId]
+  ) || [];
+
+  const dbHabits = useLiveQuery(() => 
+    db.habits.where('workspaceId').equals(activeWorkspaceId || 0).toArray(),
+    [activeWorkspaceId]
+  ) || [];
+
+  // Local settings & states
   const [userName, setUserName] = useState('User');
+  const [streak, setStreak] = useState({ current: 0, longest: 0 });
+  const [showConfig, setShowConfig] = useState(false);
+  const [enabledWidgets, setEnabledWidgets] = useState<Record<string, boolean>>({
+    planner: true,
+    goals: true,
+    countdowns: true,
+    analytics: true,
+    habits: true,
+    ai: true
+  });
 
+  // Countdown creations
+  const [showAddCountdown, setShowAddCountdown] = useState(false);
+  const [newCdTitle, setNewCdTitle] = useState('');
+  const [newCdDate, setNewCdDate] = useState('2026-12-31');
+
+  // Goal creations
+  const [showAddGoal, setShowAddGoal] = useState(false);
+  const [newGoalTitle, setNewGoalTitle] = useState('');
+  const [newGoalDate, setNewGoalDate] = useState('2026-12-31');
+  const [newGoalPriority, setNewGoalPriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [newGoalParentId, setNewGoalParentId] = useState<number | undefined>(undefined);
+
+  // Load configuration
   useEffect(() => {
     const user = localStorage.getItem('aetheros_current_user') || 'default';
-    const savedDate = localStorage.getItem(`aetheros_target_date_${user}`);
-    if (savedDate) {
-      setCustomTargetDate(savedDate);
-    }
     setUserName(user.charAt(0).toUpperCase() + user.slice(1));
-  }, []);
 
-  // Countdowns details (Toned down gradients to match muted aesthetic)
-  const countdowns = [
-    { title: 'My Target Plan', date: customTargetDate, color: 'from-purple-500/10 to-indigo-500/5 border-purple-500/20 text-purple-300' },
-    { title: 'Placement Season', date: '2026-08-01', color: 'from-blue-500/10 to-cyan-500/5 border-blue-500/20 text-blue-300' },
-    { title: 'IELTS Goal', date: '2026-10-20', color: 'from-emerald-500/10 to-teal-500/5 border-emerald-500/20 text-emerald-300' },
-    { title: 'GATE ECE 2027', date: '2027-02-06', color: 'from-rose-500/10 to-pink-500/5 border-rose-500/20 text-rose-300' }
-  ];
+    const savedWidgets = localStorage.getItem(`aetheros_dashboard_widgets_${user}`);
+    if (savedWidgets) {
+      setEnabledWidgets(JSON.parse(savedWidgets));
+    }
+  }, [activeWorkspaceId]);
+
+  // Save layout configurations
+  const handleToggleWidget = (widgetKey: string) => {
+    const user = localStorage.getItem('aetheros_current_user') || 'default';
+    const updated = { ...enabledWidgets, [widgetKey]: !enabledWidgets[widgetKey] };
+    setEnabledWidgets(updated);
+    localStorage.setItem(`aetheros_dashboard_widgets_${user}`, JSON.stringify(updated));
+  };
+
+  // Streaks computations
+  useEffect(() => {
+    if (!allLogs || allLogs.length === 0) return;
+    const sortedLogs = [...allLogs].sort((a, b) => a.date.localeCompare(b.date));
+    
+    let tempStreak = 0;
+    let maxStreak = 0;
+    sortedLogs.forEach(log => {
+      if (log.studyHours > 0) {
+        tempStreak++;
+        if (tempStreak > maxStreak) maxStreak = tempStreak;
+      } else {
+        tempStreak = 0;
+      }
+    });
+
+    setStreak({ current: tempStreak, longest: maxStreak });
+  }, [allLogs]);
+
+  const totalTasks = todayTasks.length;
+  const completedTasks = todayTasks.filter(t => t.status === 'completed').length;
+  const remainingTasks = totalTasks - completedTasks;
+  const taskProgressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  
+  const studyHours = todayLog?.studyHours || 0;
+  const overallPrepScore = subjects.length > 0 
+    ? Math.round(subjects.reduce((sum, s) => sum + s.completionPercent, 0) / subjects.length)
+    : 0;
 
   const calculateDaysLeft = (targetDateStr: string) => {
     const today = new Date(todayStr);
@@ -68,418 +148,360 @@ export default function DashboardView({ setView, onAddTaskClick }: DashboardView
     return diffDays > 0 ? diffDays : 0;
   };
 
-  // Compute Streaks and Analytics
-  useEffect(() => {
-    if (!allLogs || allLogs.length === 0) return;
-
-    // Sort logs by date ascending
-    const sortedLogs = [...allLogs].sort((a, b) => a.date.localeCompare(b.date));
-
-    // Calculate streaks
-    let currentStreak = 0;
-    let longestStreak = 0;
-    let tempStreak = 0;
-
-    sortedLogs.forEach((log) => {
-      if (log.studyHours > 0) {
-        tempStreak++;
-        if (tempStreak > longestStreak) {
-          longestStreak = tempStreak;
-        }
-      } else {
-        tempStreak = 0;
-      }
-    });
-
-    const reversedLogs = [...sortedLogs].reverse();
-    let checkIndex = 0;
-    if (reversedLogs.length > 0) {
-      if (reversedLogs[0].date === todayStr && reversedLogs[0].studyHours === 0) {
-        checkIndex = 1;
-      }
-      for (let i = checkIndex; i < reversedLogs.length; i++) {
-        if (reversedLogs[i].studyHours > 0) {
-          currentStreak++;
-        } else {
-          break;
-        }
-      }
+  const handleCreateCountdown = async () => {
+    if (newCdTitle.trim()) {
+      await db.countdowns.add({
+        workspaceId: activeWorkspaceId || 1,
+        title: newCdTitle.trim(),
+        date: newCdDate,
+        icon: 'Hourglass',
+        color: 'purple'
+      });
+      setNewCdTitle('');
+      setShowAddCountdown(false);
     }
+  };
 
-    setStreak({ current: currentStreak, longest: longestStreak });
+  const handleDeleteCountdown = async (id: number) => {
+    await db.countdowns.delete(id);
+  };
 
-    const totalHrs = allLogs.reduce((sum, item) => sum + item.studyHours, 0);
-    const activeFocusLogs = allLogs.filter(l => l.focusRating > 0);
-    const avgFcs = activeFocusLogs.length > 0 
-      ? Math.round(activeFocusLogs.reduce((sum, item) => sum + item.focusRating, 0) / activeFocusLogs.length) 
-      : 0;
-
-    const productiveDays = allLogs.filter(l => l.studyHours >= 4).length;
-    const consistencyRate = Math.round((productiveDays / allLogs.length) * 100) || 0;
-
-    setTotals({ totalHours: Math.round(totalHrs * 10) / 10, avgFocus: avgFcs, consistency: consistencyRate });
-  }, [allLogs]);
-
-  // Compute overall prep score from subject progress averages
-  useEffect(() => {
-    if (subjects && subjects.length > 0) {
-      const sumProgress = subjects.reduce((sum, s) => sum + s.completionPercent, 0);
-      setPrepScore(Math.round(sumProgress / subjects.length));
+  const handleCreateGoal = async () => {
+    if (newGoalTitle.trim()) {
+      await db.goals.add({
+        workspaceId: activeWorkspaceId || 1,
+        title: newGoalTitle.trim(),
+        description: 'Dynamic learning goal target.',
+        icon: 'Target',
+        color: 'purple',
+        targetDate: newGoalDate,
+        priority: newGoalPriority,
+        parentId: newGoalParentId,
+        progress: 0
+      });
+      setNewGoalTitle('');
+      setNewGoalParentId(undefined);
+      setShowAddGoal(false);
     }
-  }, [subjects]);
+  };
 
-  // Compute tasks numbers
-  const totalTasks = todayTasks?.length || 0;
-  const completedTasks = todayTasks?.filter(t => t.status === 'completed').length || 0;
-  const remainingTasks = totalTasks - completedTasks;
-  const taskProgressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const handleDeleteGoal = async (id: number) => {
+    await db.goals.delete(id);
+  };
 
-  const todayHoursLogged = todayTasks?.reduce((sum, t) => sum + t.actualDuration, 0) || 0;
-  const studyHours = Math.round((todayHoursLogged / 60) * 10) / 10 || todayLog?.studyHours || 0;
+  // Build Hierarchical Goals Tree
+  const renderGoalNode = (goal: Goal, level = 0) => {
+    const subGoals = dbGoals.filter(g => g.parentId === goal.id);
+    return (
+      <div key={goal.id} className="space-y-2" style={{ paddingLeft: `${level * 16}px` }}>
+        <div className="flex items-center justify-between p-2.5 rounded-xl border border-white/5 bg-zinc-950/20 hover:bg-white/[0.01] transition-all group">
+          <div className="flex items-center gap-2 truncate">
+            <Target size={14} className="text-purple-400 shrink-0" />
+            <span className="font-semibold text-xs text-white truncate">{goal.title}</span>
+            <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase font-mono ${
+              goal.priority === 'high' ? 'bg-red-500/10 text-red-400' : 'bg-zinc-500/10 text-zinc-400'
+            }`}>
+              {goal.priority}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-bold font-mono text-purple-300">{goal.progress}%</span>
+            <button 
+              onClick={() => handleDeleteGoal(goal.id!)}
+              className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity p-0.5 cursor-pointer"
+            >
+              <Trash size={12} />
+            </button>
+          </div>
+        </div>
+        {subGoals.map(sub => renderGoalNode(sub, level + 1))}
+      </div>
+    );
+  };
 
-  const productivityScore = todayLog?.productivityScore || (
-    totalTasks > 0 
-      ? Math.min(100, Math.round((taskProgressPercent * 0.7) + (Math.min(1, studyHours / 6) * 30))) 
-      : 0
-  );
-
-  // Gamified XP Gain Calculation
-  const todayXPGain = (completedTasks * 15) + Math.round(studyHours * 10);
+  const rootGoals = dbGoals.filter(g => !g.parentId);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       
-      {/* Premium Dashboard Greeting Tickers */}
-      <div className="glass-panel p-5 border border-purple-500/10 bg-gradient-to-r from-purple-500/[0.02] to-blue-500/[0.01]">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Good Evening, {userName} 👋</h2>
-            <div className="flex items-center gap-3 text-xs text-zinc-400 mt-1 flex-wrap font-sans">
-              <span className="flex items-center gap-1 text-orange-400">
-                <Flame size={14} className="fill-orange-400/20" />
-                <strong>{streak.current} Day Streak</strong>
-              </span>
-              <span className="text-zinc-700">|</span>
-              <span>Today&apos;s Target: <strong>{totalTasks} tasks</strong></span>
-              <span className="text-zinc-700">|</span>
-              <span>{remainingTasks > 0 ? `${remainingTasks} tasks pending` : 'All tasks completed!'}</span>
-            </div>
+      {/* Top Banner & Quick Controls */}
+      <div className="glass-panel p-5 border border-purple-500/10 bg-gradient-to-r from-purple-500/[0.02] to-blue-500/[0.01] flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-white tracking-tight">Good Evening, {userName} 👋</h2>
+          <div className="flex items-center gap-3 text-xs text-zinc-400 mt-1 flex-wrap font-sans">
+            <span className="flex items-center gap-1 text-orange-400">
+              <Flame size={14} className="fill-orange-400/20" />
+              <strong>{streak.current} Day Streak</strong>
+            </span>
+            <span className="text-zinc-700">|</span>
+            <span>Planner Target: <strong>{totalTasks} tasks</strong></span>
+            <span className="text-zinc-700">|</span>
+            <span>{remainingTasks > 0 ? `${remainingTasks} pending` : 'Schedules completed!'}</span>
           </div>
-          
-          {/* Hero Statistic: Overall Prep Score */}
-          <div className="flex items-center gap-3 bg-white/[0.02] border border-white/5 px-4 py-2.5 rounded-xl shadow-[0_0_15px_rgba(168,85,247,0.05)] shrink-0 select-none">
-            <TrendingUp className="text-purple-400" size={20} />
+        </div>
+
+        {/* Layout Preferences Button */}
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowConfig(!showConfig)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 text-zinc-300 text-xs transition-colors cursor-pointer"
+          >
+            <Settings size={14} />
+            <span>Customize Dashboard</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Widget Customization Tray */}
+      {showConfig && (
+        <div className="glass-panel p-4 border border-white/5 bg-zinc-950/40 space-y-3 animate-in slide-in-from-top-2 duration-200">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Toggle Active Dashboard Widgets</h3>
+          <div className="flex flex-wrap gap-2">
+            {Object.keys(enabledWidgets).map(key => (
+              <button
+                key={key}
+                onClick={() => handleToggleWidget(key)}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors ${
+                  enabledWidgets[key]
+                    ? 'border-purple-500 bg-purple-500/10 text-purple-300'
+                    : 'border-white/5 bg-zinc-950/20 text-zinc-500 hover:border-white/10'
+                }`}
+              >
+                {key.charAt(0).toUpperCase() + key.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Primary Dynamic Widgets Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 font-sans">
+
+        {/* 1. Today's Progress Card */}
+        {enabledWidgets.planner && (
+          <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] flex flex-col justify-between min-h-[220px]">
             <div>
-              <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Overall Preparation Score</div>
-              <div className="text-xl font-extrabold font-mono text-white flex items-center gap-1.5 mt-0.5">
-                <span>{prepScore}%</span>
-                <span className="text-[9px] text-emerald-400 px-1 rounded bg-emerald-500/10 font-bold font-sans">Stable</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Stand-out AI Insight Card */}
-        <div className="mt-4 p-3 rounded-xl border border-purple-500/20 bg-purple-500/5 text-xs text-purple-300 leading-relaxed font-sans flex items-start gap-2.5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]">
-          <Sparkles className="text-purple-400 shrink-0 mt-0.5" size={14} />
-          <div>
-            <strong>AI Insight:</strong> You are behind in Network Theory by two revisions. Consider studying it before Python core tonight.
-          </div>
-        </div>
-      </div>
-
-      {/* 4 Countdown cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {countdowns.map((cd, index) => {
-          const daysLeft = calculateDaysLeft(cd.date);
-          return (
-            <div 
-              key={index}
-              className={`relative overflow-hidden rounded-2xl border p-5 bg-gradient-to-br ${cd.color} shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-lg cursor-pointer`}
-            >
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/[0.02] rounded-full translate-x-6 -translate-y-6 pointer-events-none" />
-              <div className="text-[10px] uppercase tracking-wider font-mono opacity-70">{cd.title}</div>
-              <div className="mt-2.5 flex items-baseline gap-1.5">
-                <span className="text-3xl font-extrabold tracking-tight font-mono">{daysLeft}</span>
-                <span className="text-xs opacity-85">days left</span>
-              </div>
-              <div className="mt-1.5 text-[9px] opacity-60 font-sans">Deadline: {new Date(cd.date).toLocaleDateString()}</div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Main stats row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Today's Progress Card (Optimized layout to reduce empty space) */}
-        <div className="glass-panel p-6 border border-white/5 bg-white/[0.01] col-span-1 flex flex-col justify-between hover:border-white/10 transition-colors">
-          <h3 className="text-xs font-bold text-zinc-400 mb-4 uppercase tracking-wider">Today&apos;s Progress</h3>
-          
-          <div className="flex items-center gap-6 my-2">
-            {/* SVG Progress Circle (smaller and compact) */}
-            <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle
-                  cx="56"
-                  cy="56"
-                  r="48"
-                  className="stroke-zinc-900"
-                  strokeWidth="8"
-                  fill="transparent"
-                />
-                <circle
-                  cx="56"
-                  cy="56"
-                  r="48"
-                  className="stroke-purple-500 transition-all duration-1000 ease-out"
-                  strokeWidth="8"
-                  fill="transparent"
-                  strokeDasharray={301}
-                  strokeDashoffset={301 - (301 * taskProgressPercent) / 100}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="absolute text-2xl font-extrabold font-mono text-white">{taskProgressPercent}%</span>
-            </div>
-
-            {/* Leftover empty space now filled with useful stats */}
-            <div className="flex-1 space-y-2.5 text-xs font-sans">
-              <div className="flex justify-between items-center pb-1.5 border-b border-white/[0.03]">
-                <span className="text-zinc-500 font-medium">Completed:</span>
-                <span className="font-bold text-white font-mono">{completedTasks} done</span>
-              </div>
-              <div className="flex justify-between items-center pb-1.5 border-b border-white/[0.03]">
-                <span className="text-zinc-500 font-medium">Pending:</span>
-                <span className="font-bold text-zinc-400 font-mono">{remainingTasks} left</span>
-              </div>
-              <div className="flex justify-between items-center pb-1.5 border-b border-white/[0.03]">
-                <span className="text-zinc-500 font-medium">Study Time:</span>
-                <span className="font-bold text-blue-400 font-mono">{studyHours}h focus</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-zinc-500 font-medium">Today&apos;s XP:</span>
-                <span className="font-bold text-amber-400 font-mono">+{todayXPGain} XP</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Detailed Metrics Panel with Tiny Sparklines */}
-        <div className="glass-panel p-6 border border-white/5 bg-white/[0.01] col-span-1 lg:col-span-2 hover:border-white/10 transition-colors">
-          <h3 className="text-xs font-bold text-zinc-400 mb-4 uppercase tracking-wider">Performance Engine</h3>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            
-            {/* Study Hours */}
-            <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-white/5 hover:border-blue-500/20 hover:shadow-lg transition-all group flex flex-col justify-between">
-              <div className="flex items-center gap-1.5 text-zinc-400">
-                <Clock size={14} className="text-blue-400" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Study Hours</span>
-              </div>
-              <div className="flex items-end justify-between mt-3">
-                <div>
-                  <div className="text-xl font-extrabold font-mono text-white">{studyHours}h</div>
-                  <span className="text-[9px] text-zinc-500">Today&apos;s focus</span>
-                </div>
-                {/* Tiny Sparkline */}
-                <div className="w-12 h-6 opacity-60 group-hover:opacity-100 transition-opacity">
-                  <svg className="w-full h-full" viewBox="0 0 60 20">
-                    <path d="M0,15 L10,12 L20,17 L30,5 L40,10 L50,14 L60,2" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Streak */}
-            <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-white/5 hover:border-orange-500/20 hover:shadow-lg transition-all group flex flex-col justify-between">
-              <div className="flex items-center gap-1.5 text-zinc-400">
-                <Flame size={14} className="text-orange-500" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Active Streak</span>
-              </div>
-              <div className="flex items-end justify-between mt-3">
-                <div>
-                  <div className="text-xl font-extrabold font-mono text-white">{streak.current}d</div>
-                  <span className="text-[9px] text-zinc-500">Max: {streak.longest}d</span>
-                </div>
-                <div className="w-12 h-6 opacity-60 group-hover:opacity-100 transition-opacity">
-                  <svg className="w-full h-full" viewBox="0 0 60 20">
-                    <path d="M0,18 L10,18 L20,15 L30,12 L40,8 L50,4 L60,2" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Productivity Score */}
-            <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-white/5 hover:border-purple-500/20 hover:shadow-lg transition-all group flex flex-col justify-between">
-              <div className="flex items-center gap-1.5 text-zinc-400">
-                <Zap size={14} className="text-purple-400" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Productivity</span>
-              </div>
-              <div className="flex items-end justify-between mt-3">
-                <div>
-                  <div className="text-xl font-extrabold font-mono text-white">{productivityScore}%</div>
-                  <span className="text-[9px] text-zinc-500">Target index</span>
-                </div>
-                <div className="w-12 h-6 opacity-60 group-hover:opacity-100 transition-opacity">
-                  <svg className="w-full h-full" viewBox="0 0 60 20">
-                    <path d="M0,16 L10,12 L20,14 L30,6 L40,8 L50,3 L60,2" fill="none" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Average Focus Rating */}
-            <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-white/5 hover:border-emerald-500/20 hover:shadow-lg transition-all group flex flex-col justify-between">
-              <div className="flex items-center gap-1.5 text-zinc-400">
-                <Activity size={14} className="text-emerald-500" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Focus Rating</span>
-              </div>
-              <div className="flex items-end justify-between mt-3">
-                <div>
-                  <div className="text-xl font-extrabold font-mono text-white">{todayLog?.focusRating || totals.avgFocus}/10</div>
-                  <span className="text-[9px] text-zinc-500">Quality score</span>
-                </div>
-                <div className="w-12 h-6 opacity-60 group-hover:opacity-100 transition-opacity">
-                  <svg className="w-full h-full" viewBox="0 0 60 20">
-                    <path d="M0,10 L10,8 L20,10 L30,12 L40,8 L50,7 L60,8" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Consistency */}
-            <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-white/5 hover:border-rose-500/20 hover:shadow-lg transition-all group flex flex-col justify-between">
-              <div className="flex items-center gap-1.5 text-zinc-400">
-                <Target size={14} className="text-rose-500" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Consistency</span>
-              </div>
-              <div className="flex items-end justify-between mt-3">
-                <div>
-                  <div className="text-xl font-extrabold font-mono text-white">{totals.consistency}%</div>
-                  <span className="text-[9px] text-zinc-500">Study patterns</span>
-                </div>
-                <div className="w-12 h-6 opacity-60 group-hover:opacity-100 transition-opacity">
-                  <svg className="w-full h-full" viewBox="0 0 60 20">
-                    <path d="M0,18 L10,16 L20,16 L30,12 L40,12 L50,8 L60,6" fill="none" stroke="#f43f5e" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Total study hours */}
-            <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-white/5 hover:border-yellow-500/20 hover:shadow-lg transition-all group flex flex-col justify-between">
-              <div className="flex items-center gap-1.5 text-zinc-400">
-                <Award size={14} className="text-yellow-500" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Total Study</span>
-              </div>
-              <div className="flex items-end justify-between mt-3">
-                <div>
-                  <div className="text-xl font-extrabold font-mono text-white">{totals.totalHours}h</div>
-                  <span className="text-[9px] text-zinc-500">Combined prep</span>
-                </div>
-                <div className="w-12 h-6 opacity-60 group-hover:opacity-100 transition-opacity">
-                  <svg className="w-full h-full" viewBox="0 0 60 20">
-                    <path d="M0,19 L10,16 L20,14 L30,11 L40,8 L50,5 L60,2" fill="none" stroke="#eab308" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-      </div>
-
-      {/* Quick Access panel & Active Tasks list */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Quick actions panel */}
-        <div className="glass-panel p-6 border border-white/5 bg-white/[0.01] hover:border-white/10 transition-colors">
-          <h3 className="text-xs font-bold text-zinc-400 mb-4 uppercase tracking-wider">Quick Actions</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={onAddTaskClick}
-              className="flex flex-col items-center justify-center p-5 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-purple-500/5 hover:border-purple-500/20 text-zinc-300 hover:text-white transition-all cursor-pointer group"
-            >
-              <PlusCircle size={24} className="text-purple-400 group-hover:scale-110 transition-transform mb-2" />
-              <span className="text-xs font-medium">Add New Task</span>
-            </button>
-            <button
-              onClick={() => setView('focus')}
-              className="flex flex-col items-center justify-center p-5 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-blue-500/5 hover:border-blue-500/20 text-zinc-300 hover:text-white transition-all cursor-pointer group"
-            >
-              <Clock size={24} className="text-blue-400 group-hover:scale-110 transition-transform mb-2" />
-              <span className="text-xs font-medium">Start Focus Mode</span>
-            </button>
-            <button
-              onClick={() => setView('mistakes')}
-              className="flex flex-col items-center justify-center p-5 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-red-500/5 hover:border-red-500/20 text-zinc-300 hover:text-white transition-all cursor-pointer group"
-            >
-              <BrainCircuit size={24} className="text-red-400 group-hover:scale-110 transition-transform mb-2" />
-              <span className="text-xs font-medium">Log Mistake</span>
-            </button>
-            <button
-              onClick={() => setView('ai')}
-              className="flex flex-col items-center justify-center p-5 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-emerald-500/5 hover:border-emerald-500/20 text-zinc-300 hover:text-white transition-all cursor-pointer group"
-            >
-              <Zap size={24} className="text-emerald-400 group-hover:scale-110 transition-transform mb-2" />
-              <span className="text-xs font-medium">AI Insights</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Dynamic task list mini view */}
-        <div className="glass-panel p-6 border border-white/5 bg-white/[0.01] hover:border-white/10 transition-colors">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Today&apos;s Schedule</h3>
-            <button 
-              onClick={() => setView('planner')} 
-              className="text-xs text-purple-400 hover:text-purple-300 font-medium cursor-pointer"
-            >
-              Go to Planner
-            </button>
-          </div>
-          
-          <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
-            {todayTasks && todayTasks.length > 0 ? (
-              todayTasks.map((task) => (
-                <div 
-                  key={task.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.03] transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 
-                      size={18} 
-                      className={task.status === 'completed' ? 'text-emerald-500' : 'text-zinc-600'} 
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                <Activity size={14} className="text-purple-400" />
+                <span>Today&apos;s Progress</span>
+              </h3>
+              
+              <div className="flex items-center gap-6 my-2">
+                <div className="relative w-24 h-24 flex items-center justify-center shrink-0">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="48" cy="48" r="40" className="stroke-zinc-800" strokeWidth="6" fill="transparent" />
+                    <circle cx="48" cy="48" r="40" className="stroke-purple-500" strokeWidth="6" fill="transparent"
+                      strokeDasharray={2 * Math.PI * 40}
+                      strokeDashoffset={2 * Math.PI * 40 * (1 - taskProgressPercent / 100)}
+                      strokeLinecap="round"
                     />
-                    <div>
-                      <div className={`text-xs font-medium ${task.status === 'completed' ? 'line-through text-zinc-500' : 'text-white'}`}>
-                        {task.description}
+                  </svg>
+                  <span className="absolute text-sm font-bold font-mono text-white">{taskProgressPercent}%</span>
+                </div>
+                <div className="text-xs space-y-1 text-zinc-400">
+                  <p>Completed: <strong className="text-white font-mono">{completedTasks} done</strong></p>
+                  <p>Pending: <strong className="text-zinc-500 font-mono">{remainingTasks} left</strong></p>
+                  <p>Study duration: <strong className="text-purple-400 font-mono">{studyHours}h focus</strong></p>
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setView('planner')}
+              className="w-full mt-4 flex items-center justify-center gap-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-white transition-colors cursor-pointer"
+            >
+              <span>Open Planner Checklist</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* 2. Countdowns Widget */}
+        {enabledWidgets.countdowns && (
+          <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] flex flex-col justify-between min-h-[220px]">
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Hourglass size={14} className="text-blue-400" />
+                  <span>Countdown Clocks</span>
+                </h3>
+                <button 
+                  onClick={() => setShowAddCountdown(!showAddCountdown)}
+                  className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-0.5 cursor-pointer"
+                >
+                  <Plus size={12} />
+                  <span>Add</span>
+                </button>
+              </div>
+
+              {/* Add Countdown Form */}
+              {showAddCountdown && (
+                <div className="p-3 rounded-xl border border-white/5 bg-zinc-950 space-y-2 mb-3 animate-in slide-in-from-top-2 duration-150">
+                  <input
+                    type="text"
+                    value={newCdTitle}
+                    onChange={(e) => setNewCdTitle(e.target.value)}
+                    placeholder="Deadline name"
+                    className="w-full p-2 rounded-lg border border-white/5 bg-zinc-900 text-[11px] text-white focus:outline-none focus:border-blue-500"
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={newCdDate}
+                      onChange={(e) => setNewCdDate(e.target.value)}
+                      className="flex-1 p-2 rounded-lg border border-white/5 bg-zinc-900 text-[11px] text-white focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                    <button 
+                      onClick={handleCreateCountdown}
+                      className="px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold cursor-pointer"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                {dbCountdowns.length > 0 ? (
+                  dbCountdowns.map(cd => (
+                    <div key={cd.id} className="flex items-center justify-between p-2 rounded-lg border border-white/5 bg-zinc-950/20 group">
+                      <div>
+                        <p className="font-semibold text-xs text-white">{cd.title}</p>
+                        <span className="text-[9px] text-zinc-500 font-mono">Target: {cd.date}</span>
                       </div>
-                      <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                        {task.timeSlot} • {task.estimatedDuration} mins
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold font-mono text-blue-400">{calculateDaysLeft(cd.date)} days</span>
+                        <button 
+                          onClick={() => handleDeleteCountdown(cd.id!)}
+                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-400 transition-opacity p-0.5 cursor-pointer"
+                        >
+                          <Trash size={12} />
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  <span className={`text-[9px] uppercase px-2 py-0.5 rounded font-bold font-mono ${
-                    task.priority === 'high' 
-                      ? 'bg-red-500/10 text-red-400' 
-                      : task.priority === 'medium' 
-                      ? 'bg-yellow-500/10 text-yellow-400' 
-                      : 'bg-blue-500/10 text-blue-400'
-                  }`}>
-                    {task.priority}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-xs text-zinc-500 font-sans">
-                No tasks logged for today yet.
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-zinc-500 text-[11px]">No custom countdowns configured.</div>
+                )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* 3. Goals Widget */}
+        {enabledWidgets.goals && (
+          <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] flex flex-col justify-between min-h-[220px]">
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Target size={14} className="text-purple-400" />
+                  <span>Goals Hierarchy</span>
+                </h3>
+                <button 
+                  onClick={() => setShowAddGoal(!showAddGoal)}
+                  className="text-[10px] text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5 cursor-pointer"
+                >
+                  <Plus size={12} />
+                  <span>Add Goal</span>
+                </button>
+              </div>
+
+              {/* Add Goal Form */}
+              {showAddGoal && (
+                <div className="p-3 rounded-xl border border-white/5 bg-zinc-950 space-y-2 mb-3 animate-in slide-in-from-top-2 duration-150">
+                  <input
+                    type="text"
+                    value={newGoalTitle}
+                    onChange={(e) => setNewGoalTitle(e.target.value)}
+                    placeholder="Goal Title"
+                    className="w-full p-2 rounded-lg border border-white/5 bg-zinc-900 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={newGoalParentId || ''}
+                      onChange={(e) => setNewGoalParentId(e.target.value ? parseInt(e.target.value) : undefined)}
+                      className="flex-1 p-2 rounded-lg border border-white/5 bg-zinc-900 text-[10px] text-zinc-300 cursor-pointer"
+                    >
+                      <option value="">No Parent (Root)</option>
+                      {dbGoals.map(g => (
+                        <option key={g.id} value={g.id}>{g.title}</option>
+                      ))}
+                    </select>
+                    <button 
+                      onClick={handleCreateGoal}
+                      className="px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold cursor-pointer"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                {rootGoals.length > 0 ? (
+                  rootGoals.map(g => renderGoalNode(g))
+                ) : (
+                  <div className="text-center py-8 text-zinc-500 text-[11px]">No workspace goals logged.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* Dynamic Summary/Analytics Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-sans">
+        
+        {/* Habit Widget */}
+        {enabledWidgets.habits && (
+          <div className="glass-panel p-5 border border-white/5 bg-white/[0.01]">
+            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+              <Activity size={14} className="text-emerald-400" />
+              <span>Workspace Habits Tracker</span>
+            </h3>
+            
+            <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+              {dbHabits.length > 0 ? (
+                dbHabits.map(h => (
+                  <div key={h.id} className="flex justify-between items-center p-2.5 rounded-xl border border-white/5 bg-zinc-950/20">
+                    <span className="text-xs font-semibold text-white">{h.name}</span>
+                    <div className="flex gap-1.5">
+                      {/* Standard 5 Day tracker indicators */}
+                      {[1, 2, 3, 4, 5].map(day => (
+                        <div key={day} className={`w-3.5 h-3.5 rounded-full border border-white/5 bg-zinc-900 cursor-pointer hover:bg-emerald-500/30`} />
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12 text-zinc-500 text-xs">No habits configured. Create habits in the Habits tab!</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* AI Tickers Advice Widget */}
+        {enabledWidgets.ai && (
+          <div className="glass-panel p-5 border border-purple-500/10 bg-purple-500/[0.01] flex flex-col justify-between">
+            <div>
+              <h3 className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-1.5 font-mono">
+                <BrainCircuit size={14} />
+                <span>AI Productivity Coach Insights</span>
+              </h3>
+              
+              <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 text-xs text-purple-300 font-sans leading-relaxed select-none">
+                💡 <strong>Dynamic Recommendation</strong>: Based on your current workspace targets, you should study React modules for 45 minutes today to balance your weekly study hour pacing. Revisions for Calculus are due in 2 days.
+              </div>
+            </div>
+            <button
+              onClick={() => setView('ai')}
+              className="w-full mt-4 flex items-center justify-center gap-1 py-2 rounded-xl bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/20 text-xs font-bold text-purple-300 transition-colors cursor-pointer"
+            >
+              <span>Ask AI Coach</span>
+              <Sparkles size={14} />
+            </button>
+          </div>
+        )}
 
       </div>
 

@@ -16,22 +16,26 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  LineChart,
-  Line,
   Legend
 } from 'recharts';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
-import { Flame, Calendar, Award, CheckCircle } from 'lucide-react';
+import { useStore } from '@/lib/store';
+import { Flame, Calendar, Award } from 'lucide-react';
 
 export default function AnalyticsView() {
-  // DB queries
-  const allLogs = useLiveQuery(() => db.dailyLogs.toArray(), []);
-  const subjects = useLiveQuery(() => db.subjects.toArray(), []);
+  const { activeWorkspaceId } = useStore();
+
+  // DB queries scoped to workspace
+  const allLogs = useLiveQuery(() => db.dailyLogs.toArray(), []) || [];
+  const subjects = useLiveQuery(() => 
+    db.subjects.where('workspaceId').equals(activeWorkspaceId || 0).toArray(),
+    [activeWorkspaceId]
+  ) || [];
 
   // Format data for the past 7 days chart
   const weeklyData = allLogs
-    ?.slice(-7)
+    .slice(-7)
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(log => ({
       name: new Date(log.date).toLocaleDateString([], { weekday: 'short' }),
@@ -39,49 +43,37 @@ export default function AnalyticsView() {
       focus: log.focusRating,
       sleep: log.sleepHours,
       energy: log.energy
-    })) || [];
+    }));
 
-  // Format category breakdown data (Pie Chart)
-  const categoryDataMap: Record<string, number> = {};
-  subjects?.forEach(s => {
-    categoryDataMap[s.category] = (categoryDataMap[s.category] || 0) + s.totalHours;
-  });
-
-  const categoryPieData = Object.entries(categoryDataMap).map(([key, val]) => ({
-    name: key === 'gate' ? 'GATE ECE' : key === 'placement' ? 'Placements' : 'Languages',
-    value: val
+  // Format category breakdown data (Pie Chart) showing progress contribution
+  const categoryPieData = subjects.map(s => ({
+    name: s.name,
+    value: s.completionPercent || 10 // default min slice size to show
   }));
 
-  const COLORS = ['#a855f7', '#3b82f6', '#10b981'];
+  const COLORS = ['#a855f7', '#3b82f6', '#10b981', '#ef4444', '#f59e0b'];
 
-  // Radar chart data: top subjects confidence
+  // Radar chart data: subject completion percentages
   const radarData = subjects
-    ?.filter(s => s.totalHours > 0)
     .slice(0, 6)
     .map(s => ({
       subject: s.name.substring(0, 12) + (s.name.length > 12 ? '..' : ''),
-      confidence: s.confidence,
-      fullMark: 5
-    })) || [];
+      completion: s.completionPercent || 0,
+      fullMark: 100
+    }));
 
   // Generate GitHub style heatmap grid (past 60 days)
   const generateHeatmapDays = () => {
     const days = [];
-    const today = new Date('2026-07-10'); // Core current date
-    
+    const today = new Date('2026-07-10'); // Core system date
     for (let i = 59; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      
-      // Find log in database
-      const log = allLogs?.find(l => l.date === dateStr);
-      const studyHrs = log?.studyHours || 0;
-      
+      const log = allLogs.find(l => l.date === dateStr);
       days.push({
         date: dateStr,
-        hours: studyHrs,
-        dayOfWeek: d.getDay()
+        hours: log?.studyHours || 0
       });
     }
     return days;
@@ -89,89 +81,77 @@ export default function AnalyticsView() {
 
   const heatmapDays = generateHeatmapDays();
 
-  // Get color intensity class based on study hours (GitHub style)
-  const getHeatmapColor = (hours: number) => {
-    if (hours === 0) return 'bg-zinc-900 border-zinc-950/20';
-    if (hours < 3) return 'bg-emerald-950 border-emerald-950';
-    if (hours < 5) return 'bg-emerald-800 border-emerald-900';
-    if (hours < 7) return 'bg-emerald-600 border-emerald-700';
-    return 'bg-emerald-400 border-emerald-500';
-  };
+  // Math metrics
+  const totalStudyHours = allLogs.reduce((sum, l) => sum + l.studyHours, 0);
+  const avgFocusRating = allLogs.length > 0 
+    ? (allLogs.reduce((sum, l) => sum + l.focusRating, 0) / allLogs.length).toFixed(1)
+    : '0.0';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       
-      {/* GitHub style heatmap grid */}
-      <div className="glass-panel p-6 border border-white/5 bg-white/[0.01]">
-        <h3 className="text-sm font-semibold text-zinc-400 mb-4 uppercase tracking-wider flex items-center gap-2">
-          <Calendar size={16} className="text-purple-400" />
-          <span>Study Consistency Heatmap</span>
-        </h3>
-        
-        <div className="flex flex-col gap-2 overflow-x-auto pb-2">
-          {/* Heatmap Blocks Grid */}
-          <div className="flex gap-1.5 min-w-[500px]">
-            {heatmapDays.map((day, i) => (
-              <div 
-                key={i}
-                title={`${day.date}: ${day.hours} study hours`}
-                className={`w-3.5 h-3.5 rounded-[3px] border transition-all ${getHeatmapColor(day.hours)} hover:scale-110 cursor-pointer`}
-              />
-            ))}
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-sans">
+        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <Flame size={20} />
           </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-mono">Total Hours Logged</p>
+            <h4 className="text-xl font-bold text-white font-mono mt-0.5">{totalStudyHours} hours</h4>
+          </div>
+        </div>
 
-          <div className="flex justify-between items-center text-[10px] text-zinc-500 font-mono pr-2 mt-1">
-            <span>60 days ago</span>
-            <div className="flex items-center gap-1">
-              <span>Less</span>
-              <div className="w-2.5 h-2.5 bg-zinc-900 rounded-[2px]" />
-              <div className="w-2.5 h-2.5 bg-emerald-950 rounded-[2px]" />
-              <div className="w-2.5 h-2.5 bg-emerald-800 rounded-[2px]" />
-              <div className="w-2.5 h-2.5 bg-emerald-600 rounded-[2px]" />
-              <div className="w-2.5 h-2.5 bg-emerald-400 rounded-[2px]" />
-              <span>More</span>
-            </div>
-            <span>Today</span>
+        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <Calendar size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-mono">Daily Target Met</p>
+            <h4 className="text-xl font-bold text-white font-mono mt-0.5">{allLogs.filter(l => l.studyHours >= 4).length} days</h4>
+          </div>
+        </div>
+
+        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <Award size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-mono">Average Focus Index</p>
+            <h4 className="text-xl font-bold text-white font-mono mt-0.5">{avgFocusRating} / 10</h4>
           </div>
         </div>
       </div>
 
-      {/* Recharts Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Trend Area Chart */}
-        <div className="glass-panel p-6 border border-white/5 bg-white/[0.01]">
-          <h3 className="text-sm font-semibold text-zinc-400 mb-4 uppercase tracking-wider">Weekly Focus Hours</h3>
-          <div className="h-64">
-            {weeklyData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyData}>
-                  <defs>
-                    <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="name" stroke="#52525b" fontSize={10} tickLine={false} />
-                  <YAxis stroke="#52525b" fontSize={10} tickLine={false} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: 'rgba(255,255,255,0.08)' }} 
-                    labelStyle={{ color: '#fff' }}
-                  />
-                  <Area type="monotone" dataKey="hours" stroke="#a855f7" fillOpacity={1} fill="url(#colorHours)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-zinc-500">Loading charts...</div>
-            )}
-          </div>
+      {/* Primary Trend Area Chart */}
+      <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] font-sans">
+        <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Past 7 Days Study Trend</h3>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={weeklyData}>
+              <defs>
+                <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#a855f7" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="name" stroke="#52525b" fontSize={10} tickLine={false} />
+              <YAxis stroke="#52525b" fontSize={10} tickLine={false} />
+              <Tooltip contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }} />
+              <Area type="monotone" dataKey="hours" stroke="#a855f7" strokeWidth={2} fillOpacity={1} fill="url(#colorHours)" />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
+      </div>
 
-        {/* Categories Pie Chart */}
-        <div className="glass-panel p-6 border border-white/5 bg-white/[0.01]">
-          <h3 className="text-sm font-semibold text-zinc-400 mb-4 uppercase tracking-wider">Subject Categories Split</h3>
-          <div className="h-64 flex items-center justify-center">
-            {categoryPieData.length > 0 ? (
+      {/* Breakdown Charts Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-sans">
+        
+        {/* Pie chart progress contribution */}
+        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] flex flex-col justify-between">
+          <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Subject Progress Breakdown</h3>
+          <div className="h-56 w-full flex items-center justify-center">
+            {subjects.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -187,63 +167,63 @@ export default function AnalyticsView() {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: 'rgba(255,255,255,0.08)' }} 
-                  />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }} />
+                  <Legend formatter={(value) => <span className="text-[10px] text-zinc-400 font-sans">{value}</span>} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-xs text-zinc-500">No subject tracking hours logged yet.</div>
+              <div className="text-zinc-500 text-xs">No subjects defined.</div>
             )}
           </div>
         </div>
 
-        {/* Sleep vs Focus Rating Correlation Line Chart */}
-        <div className="glass-panel p-6 border border-white/5 bg-white/[0.01]">
-          <h3 className="text-sm font-semibold text-zinc-400 mb-4 uppercase tracking-wider">Sleep vs Focus Correlation</h3>
-          <div className="h-64">
-            {weeklyData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={weeklyData}>
-                  <XAxis dataKey="name" stroke="#52525b" fontSize={10} tickLine={false} />
-                  <YAxis stroke="#52525b" fontSize={10} tickLine={false} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: 'rgba(255,255,255,0.08)' }} 
-                  />
-                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '10px' }} />
-                  <Line type="monotone" dataKey="sleep" name="Sleep (Hours)" stroke="#3b82f6" strokeWidth={2} activeDot={{ r: 6 }} />
-                  <Line type="monotone" dataKey="focus" name="Focus Rating (1-10)" stroke="#10b981" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-zinc-500">Loading correlation stats...</div>
-            )}
-          </div>
-        </div>
-
-        {/* Radar Confidence Chart */}
-        <div className="glass-panel p-6 border border-white/5 bg-white/[0.01]">
-          <h3 className="text-sm font-semibold text-zinc-400 mb-4 uppercase tracking-wider">Subject Confidence Indices</h3>
-          <div className="h-64">
+        {/* Radar chart confidence breakdown */}
+        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] flex flex-col justify-between">
+          <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Subject Completion Radar</h3>
+          <div className="h-56 w-full flex items-center justify-center">
             {radarData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                   <PolarGrid stroke="#27272a" />
                   <PolarAngleAxis dataKey="subject" stroke="#a1a1aa" fontSize={8} />
-                  <PolarRadiusAxis angle={30} domain={[0, 5]} stroke="#52525b" fontSize={8} />
-                  <Radar name="Confidence" dataKey="confidence" stroke="#818cf8" fill="#818cf8" fillOpacity={0.2} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#09090b', borderColor: 'rgba(255,255,255,0.08)' }} 
-                  />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#52525b" fontSize={8} />
+                  <Radar name="Completion %" dataKey="completion" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} />
+                  <Tooltip contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }} />
                 </RadarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-xs text-zinc-500">No active subjects tracked.</div>
+              <div className="text-zinc-500 text-xs">No metrics recorded.</div>
             )}
           </div>
         </div>
+      </div>
 
+      {/* GitHub heatmaps grid */}
+      <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] font-sans">
+        <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">60-Day Study Consistency Grid</h3>
+        <div className="flex flex-wrap gap-1">
+          {heatmapDays.map((day, idx) => {
+            const h = day.hours;
+            const bgClass = h === 0 
+              ? 'bg-zinc-900 border border-white/5' 
+              : h < 3 
+              ? 'bg-purple-900/30 border border-purple-800/10' 
+              : h < 6 
+              ? 'bg-purple-700/60' 
+              : 'bg-purple-500';
+            return (
+              <div 
+                key={idx} 
+                className={`w-3.5 h-3.5 rounded ${bgClass}`} 
+                title={`${day.date}: ${h} hours`}
+              />
+            );
+          })}
+        </div>
+        <div className="flex justify-between text-[9px] text-zinc-500 font-mono mt-3">
+          <span>Less active</span>
+          <span>More active</span>
+        </div>
       </div>
 
     </div>

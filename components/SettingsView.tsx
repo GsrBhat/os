@@ -61,6 +61,8 @@ export default function SettingsView() {
   const handleExportBackup = async () => {
     try {
       const backupData = {
+        workspaces: await db.workspaces.toArray(),
+        widgets: await db.widgets.toArray(),
         tasks: await db.tasks.toArray(),
         dailyLogs: await db.dailyLogs.toArray(),
         subjects: await db.subjects.toArray(),
@@ -69,27 +71,37 @@ export default function SettingsView() {
         notes: await db.notes.toArray(),
         habits: await db.habits.toArray(),
         pomodoroLogs: await db.pomodoroLogs.toArray(),
-        goals: await db.goals.toArray()
+        goals: await db.goals.toArray(),
+        countdowns: await db.countdowns.toArray()
       };
 
-      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const jsonStr = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       
       const link = document.createElement('a');
       link.href = url;
-      link.download = `aetheros_backup_${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `AetherOS_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       
-      addXP(10); // +10 XP for running backup maintenance
-      confetti({ particleCount: 50, spread: 40 });
+      addXP(10); // +10 XP for backing up database
+      
+      // Trigger short success feedback
+      confetti({
+        particleCount: 50,
+        spread: 40,
+        origin: { y: 0.9 }
+      });
     } catch (err) {
-      console.error('Backup failed', err);
-      alert('Backup failed to compile.');
+      alert('Failed to export backup: ' + err);
     }
   };
 
-  // Restore database tables from JSON backup file
-  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Restore database tables from JSON file
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -103,6 +115,8 @@ export default function SettingsView() {
         }
 
         if (confirm('Importing this file will overwrite all existing local database data. Proceed?')) {
+          await db.workspaces.clear();
+          await db.widgets.clear();
           await db.tasks.clear();
           await db.dailyLogs.clear();
           await db.subjects.clear();
@@ -112,8 +126,11 @@ export default function SettingsView() {
           await db.habits.clear();
           await db.pomodoroLogs.clear();
           await db.goals.clear();
+          await db.countdowns.clear();
 
           // Load restored data
+          if (data.workspaces?.length) await db.workspaces.bulkAdd(data.workspaces);
+          if (data.widgets?.length) await db.widgets.bulkAdd(data.widgets);
           if (data.tasks.length) await db.tasks.bulkAdd(data.tasks);
           if (data.dailyLogs.length) await db.dailyLogs.bulkAdd(data.dailyLogs);
           if (data.subjects.length) await db.subjects.bulkAdd(data.subjects);
@@ -123,6 +140,7 @@ export default function SettingsView() {
           if (data.habits.length) await db.habits.bulkAdd(data.habits);
           if (data.pomodoroLogs.length) await db.pomodoroLogs.bulkAdd(data.pomodoroLogs);
           if (data.goals.length) await db.goals.bulkAdd(data.goals);
+          if (data.countdowns?.length) await db.countdowns.bulkAdd(data.countdowns);
 
           alert('AetherOS database successfully restored from JSON file.');
           window.location.reload();
@@ -137,6 +155,8 @@ export default function SettingsView() {
   // Clear Database completely
   const handleClearDatabase = async () => {
     if (confirm('WARNING: This will permanently wipe all local study logs, notes, subjects, and habits. Your progress will be reset and you will return to the onboarding setup. Proceed?')) {
+      await db.workspaces.clear();
+      await db.widgets.clear();
       await db.tasks.clear();
       await db.dailyLogs.clear();
       await db.subjects.clear();
@@ -146,6 +166,7 @@ export default function SettingsView() {
       await db.habits.clear();
       await db.pomodoroLogs.clear();
       await db.goals.clear();
+      await db.countdowns.clear();
       
       const user = localStorage.getItem('aetheros_current_user') || 'default';
       localStorage.removeItem(`aetheros_onboarded_${user}`);
@@ -180,174 +201,141 @@ export default function SettingsView() {
               <button
                 key={theme.id}
                 onClick={() => updateSettings({ theme: theme.id })}
-                className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                   settings.theme === theme.id 
                     ? 'border-purple-500 bg-purple-500/10 text-white' 
-                    : 'border-white/5 bg-zinc-950/20 hover:bg-white/[0.02] text-zinc-400'
+                    : 'border-white/5 bg-transparent text-zinc-400 hover:bg-white/[0.01] hover:text-zinc-200'
                 }`}
               >
                 <span>{theme.label}</span>
-                <div className={`w-4 h-4 rounded-full border border-white/10 ${theme.class}`} />
+                <div className={`w-3.5 h-3.5 rounded-full border border-white/10 ${theme.class.split(' ')[0]}`} />
               </button>
             ))}
           </div>
         </div>
 
-        {/* Dynamic Study Plan Deadline Editor */}
-        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] space-y-4">
-          <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+        {/* Dynamic Study Goals schedule controls */}
+        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01]">
+          <h3 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2">
             <CalendarRange size={16} className="text-purple-400" />
-            <span>Study Plan & Timelines</span>
+            <span>Preparation Schedule</span>
           </h3>
 
-          <div className="space-y-3 text-xs">
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4 text-xs">
+            <div>
+              <label className="block text-[10px] font-bold text-zinc-500 mb-1.5 uppercase tracking-wider">Daily target hours</label>
+              <div className="flex items-center gap-3">
+                <input 
+                  type="range" 
+                  min="2" 
+                  max="12" 
+                  value={dailyHours}
+                  onChange={(e) => handleUpdatePlan(prepDays, targetDate, parseInt(e.target.value))}
+                  className="w-full accent-purple-500 cursor-pointer"
+                />
+                <span className="font-mono font-bold text-purple-400 shrink-0 w-12">{dailyHours} hours</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Days to Prepare</label>
-                <input
-                  type="number"
-                  min="10"
-                  max="2000"
+                <label className="block text-[10px] font-bold text-zinc-500 mb-1.5 uppercase tracking-wider">Days to prepare</label>
+                <input 
+                  type="number" 
+                  min="10" 
+                  max="1000"
                   value={prepDays}
                   onChange={(e) => {
                     const days = parseInt(e.target.value) || 30;
                     const d = new Date();
                     d.setDate(d.getDate() + days);
-                    const newDate = d.toISOString().split('T')[0];
-                    handleUpdatePlan(days, newDate, dailyHours);
+                    const formattedDate = d.toISOString().split('T')[0];
+                    handleUpdatePlan(days, formattedDate, dailyHours);
                   }}
-                  className="w-full p-2.5 rounded-lg border border-white/5 bg-zinc-950 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                  className="w-full p-2.5 rounded-lg border border-white/5 bg-zinc-950 text-white focus:outline-none focus:border-purple-500 font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Target Exam Date</label>
-                <input
-                  type="date"
+                <label className="block text-[10px] font-bold text-zinc-500 mb-1.5 uppercase tracking-wider">Target Exam date</label>
+                <input 
+                  type="date" 
                   value={targetDate}
                   onChange={(e) => {
-                    const date = e.target.value;
-                    const target = new Date(date);
+                    const dateVal = e.target.value;
+                    const target = new Date(dateVal);
                     const today = new Date();
                     const diffTime = target.getTime() - today.getTime();
                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    handleUpdatePlan(diffDays > 0 ? diffDays : 10, date, dailyHours);
+                    handleUpdatePlan(diffDays > 0 ? diffDays : 10, dateVal, dailyHours);
                   }}
-                  className="w-full p-2.5 rounded-lg border border-white/5 bg-zinc-950 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                  className="w-full p-2.5 rounded-lg border border-white/5 bg-zinc-950 text-white focus:outline-none focus:border-purple-500 font-mono"
                 />
               </div>
             </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Daily Target Study Hours</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min="2"
-                  max="12"
-                  value={dailyHours}
-                  onChange={(e) => handleUpdatePlan(prepDays, targetDate, parseInt(e.target.value))}
-                  className="w-full accent-purple-500 cursor-pointer"
-                />
-                <span className="text-xs font-bold font-mono text-purple-400 shrink-0 w-12">{dailyHours} hours</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Global Animation settings */}
-        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01]">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2">
-            <Sliders size={16} className="text-blue-400" />
-            <span>UI Settings</span>
-          </h3>
-          
-          <div className="flex justify-between items-center text-xs">
-            <div className="space-y-0.5">
-              <div className="font-semibold text-white">Animations & Transitions</div>
-              <div className="text-[10px] text-zinc-500">Toggle floating effects and sliders</div>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer select-none">
-              <input 
-                type="checkbox" 
-                checked={settings.animations}
-                onChange={(e) => updateSettings({ animations: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-zinc-800 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
-            </label>
           </div>
         </div>
 
       </div>
 
-      {/* Column 2: System Data & Cloud Sync */}
+      {/* Column 2: Data Portability & Settings */}
       <div className="space-y-6">
         
-        {/* One Click Backup & Restore */}
+        {/* Backup manager */}
         <div className="glass-panel p-5 border border-white/5 bg-white/[0.01]">
           <h3 className="text-sm font-semibold text-zinc-300 mb-4 flex items-center gap-2">
-            <Database size={16} className="text-emerald-400" />
-            <span>Database Management</span>
+            <Database size={16} className="text-purple-400" />
+            <span>Database Backup & Restore</span>
           </h3>
 
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            {/* Export */}
-            <button
-              id="export-backup-btn"
+          <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+            All study logs, notes, and task progress remain safely stored in your browser offline. You can export a JSON backup file to import on another machine.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button 
               onClick={handleExportBackup}
-              className="flex items-center gap-2 p-3 justify-center rounded-xl border border-white/5 bg-zinc-950/20 hover:bg-white/[0.03] text-zinc-300 hover:text-white transition-colors cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 text-xs font-bold text-white transition-all cursor-pointer"
             >
-              <Download size={14} className="text-emerald-400" />
-              <span>Export Backup</span>
+              <Download size={14} />
+              <span>Export JSON Backup</span>
             </button>
 
-            {/* Import */}
-            <button
+            <button 
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 p-3 justify-center rounded-xl border border-white/5 bg-zinc-950/20 hover:bg-white/[0.03] text-zinc-300 hover:text-white transition-colors cursor-pointer"
+              className="flex-grow flex items-center justify-center gap-2 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition-all cursor-pointer"
             >
-              <Upload size={14} className="text-blue-400" />
-              <span>Restore Backup</span>
+              <Upload size={14} />
+              <span>Import Backup file</span>
             </button>
             <input 
-              ref={fileInputRef}
               type="file" 
+              ref={fileInputRef} 
+              onChange={handleImportBackup} 
+              className="hidden" 
               accept=".json"
-              onChange={handleImportBackup}
-              className="hidden"
             />
-          </div>
-
-          <div className="mt-4 border-t border-white/5 pt-4">
-            <button
-              onClick={handleClearDatabase}
-              className="w-full flex items-center justify-center gap-1.5 p-3 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 transition-colors text-xs font-semibold cursor-pointer"
-            >
-              <Trash2 size={14} />
-              <span>Reset All Progress (Start Fresh)</span>
-            </button>
           </div>
         </div>
 
-        {/* API Credentials */}
-        <div className="glass-panel p-5 border border-white/5 bg-white/[0.01] space-y-4">
-          <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
-            <Key size={16} className="text-amber-400" />
-            <span>API Credentials</span>
+        {/* Start Fresh resets */}
+        <div className="glass-panel p-5 border border-red-500/10 bg-red-500/[0.01]">
+          <h3 className="text-sm font-semibold text-red-400 mb-4 flex items-center gap-2">
+            <Sliders size={16} />
+            <span>Start Fresh</span>
           </h3>
 
-          <div>
-            <label className="block text-[10px] font-semibold text-zinc-500 mb-1">GEMINI AI API KEY</label>
-            <input 
-              type="password" 
-              value={settings.geminiApiKey}
-              onChange={(e) => updateSettings({ geminiApiKey: e.target.value })}
-              placeholder="AI-assistant capability trigger"
-              className="w-full p-2.5 rounded-lg border border-white/5 bg-white/5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-            />
-            <span className="text-[9px] text-zinc-500 mt-1 block">Plug in key to enable chatbot answers & quizzes. Keys are saved locally.</span>
-          </div>
+          <p className="text-xs text-zinc-500 mb-5 leading-relaxed">
+            Instantly wipe all local database records and reset onboarding configs to start from a blank workspace slate. This action is permanent and cannot be undone.
+          </p>
+
+          <button 
+            onClick={handleClearDatabase}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-bold transition-all cursor-pointer"
+          >
+            <Trash2 size={14} />
+            <span>Wipe Local Database</span>
+          </button>
         </div>
 
       </div>
