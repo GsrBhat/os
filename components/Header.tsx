@@ -1,16 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Pause, CheckCircle, Search, Sparkles, Bell, Sun, Moon } from 'lucide-react';
+import { Clock, Play, Pause, CheckCircle, Search, Sparkles, Bell, Sun, Moon, Settings, LogOut } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { db, type Task } from '@/lib/db';
 
 interface HeaderProps {
   currentView: string;
+  setView?: (view: any) => void;
   onSearchClick: () => void;
 }
 
-export default function Header({ currentView, onSearchClick }: HeaderProps) {
+export default function Header({ currentView, setView, onSearchClick }: HeaderProps) {
   const { activeTimer, pauseTaskTimer, stopTaskTimer, settings, updateSettings } = useStore();
   const [time, setTime] = useState<string>('');
   const [dateStr, setDateStr] = useState<string>('');
@@ -29,7 +30,18 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
   const [userName, setUserName] = useState<string>('User');
   const [userEmail, setUserEmail] = useState<string>('');
   const [toastMsg, setToastMsg] = useState<string>('');
+  const [isMobile, setIsMobile] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+
+  // Resize listener for responsive layout checks
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Click outside listener for notifications card
   useEffect(() => {
@@ -149,12 +161,12 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
   };
 
   return (
-    <header className="glass-panel w-full px-6 py-4 flex items-center justify-between gap-4 mb-6 shadow-sm">
+    <header className="glass-panel w-full px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-2 md:gap-4 mb-4 md:mb-6 shadow-sm">
       {/* View Title & Greetings */}
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-white">{viewTitles[currentView] || 'AetherOS'}</h1>
-        <p className="text-xs text-zinc-400 mt-0.5">
-          {greeting}, {userName} 👋 <span className="mx-1.5 text-zinc-600">|</span> {dateStr}
+        <h1 className="text-lg md:text-xl font-bold tracking-tight text-white">{viewTitles[currentView] || 'AetherOS'}</h1>
+        <p className="text-[10px] md:text-xs text-zinc-400 mt-0.5">
+          {greeting}, {userName} 👋<span className="hidden sm:inline"><span className="mx-1.5 text-zinc-600">|</span>{dateStr}</span>
         </p>
       </div>
 
@@ -188,18 +200,48 @@ export default function Header({ currentView, onSearchClick }: HeaderProps) {
       )}
 
       {/* Search, Time & Notifications */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4">
         {/* Search trigger */}
         <button
           onClick={onSearchClick}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10 text-zinc-400 hover:text-white text-xs transition-all cursor-pointer font-sans"
+          className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-1.5 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10 text-zinc-400 hover:text-white text-xs transition-all cursor-pointer font-sans"
         >
           <Search size={14} className="transition-transform group-hover:scale-110" />
-          <span>Search tasks, notes, subjects...</span>
+          <span className="hidden sm:inline">Search tasks, notes, subjects...</span>
+          <span className="sm:hidden text-[10px]">Search...</span>
           <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-white/10 bg-white/10 px-1 font-mono text-[10px] font-medium text-zinc-500">
             Ctrl+K
           </kbd>
         </button>
+
+        {/* Mobile quick settings shortcut icons */}
+        {isMobile && setView && (
+          <>
+            <button
+              onClick={() => setView('settings')}
+              className={`p-2 rounded-lg border transition-colors cursor-pointer ${
+                currentView === 'settings' 
+                  ? 'border-purple-500 bg-purple-500/10 text-white' 
+                  : 'border-white/5 bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+              }`}
+              title="System Preferences"
+            >
+              <Settings size={14} />
+            </button>
+            <button
+              onClick={() => {
+                if (confirm('Are you sure you want to log out of your study workspace?')) {
+                  localStorage.removeItem('aetheros_current_user');
+                  window.location.reload();
+                }
+              }}
+              className="p-2 rounded-lg border border-red-500/15 bg-red-500/5 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer"
+              title="Log Out"
+            >
+              <LogOut size={14} />
+            </button>
+          </>
+        )}
 
         {/* Dark/Light Quick Toggle */}
         <button

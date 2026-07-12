@@ -121,7 +121,7 @@ export default function SubjectView() {
       
       {/* Category Tabs (Rendered if NO subject selected) */}
       {!selectedSubjectId && (
-        <div className="flex gap-2 p-1 bg-white/[0.02] border border-white/5 rounded-xl w-fit">
+        <div className="flex flex-wrap gap-2 p-1 bg-white/[0.02] border border-white/5 rounded-xl w-fit max-w-full">
           <button
             onClick={() => setActiveCategory('all')}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${

@@ -260,7 +260,7 @@ export default function FocusView() {
       {/* Settings bar inside fullscreen focus */}
       {isFullscreen && (
         <div className="absolute top-8 left-8 right-8 flex justify-between items-center text-zinc-500 text-xs font-mono">
-          <span>SaiOS FOCUS ENVIRONMENT</span>
+          <span>AETHEROS FOCUS ENVIRONMENT</span>
           <button 
             onClick={toggleFullscreen}
             className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"

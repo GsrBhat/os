@@ -18,6 +18,7 @@ import AIAssistantView from '@/components/AIAssistantView';
 import AuthView from '@/components/AuthView';
 import SettingsView from '@/components/SettingsView';
 import { useStore } from '@/lib/store';
+import { LayoutDashboard, CheckSquare, Calendar, BarChart3, Sparkles } from 'lucide-react';
 
 export default function Home() {
   const { seedCompleted } = useStore();
@@ -26,10 +27,21 @@ export default function Home() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   
   // Auth states
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [isAuthChecked, setIsAuthChecked] = useState(false);
+
+  // Check mobile viewport on mount and resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Check onboarding status and auth from LocalStorage on mount
   useEffect(() => {
@@ -61,32 +73,18 @@ export default function Home() {
     setAddTaskModalOpen(true);
   };
 
-  // Wait until auth status is checked
-  if (!isAuthChecked) {
+  if (!isAuthChecked || isOnboarded === null) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-mono text-xs text-zinc-500 gap-3">
-        <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-ping" />
-        <span>Verifying login state...</span>
+      <div className="min-h-screen w-screen flex items-center justify-center bg-zinc-950 text-zinc-500 font-mono text-xs">
+        Loading study workspace...
       </div>
     );
   }
 
-  // Show Auth view if no active session
   if (!currentUser) {
     return <AuthView onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Wait until onboarding check and DB seed is evaluated
-  if (isOnboarded === null || !seedCompleted) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 font-mono text-xs text-zinc-500 gap-3">
-        <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-ping" />
-        <span>Initializing SaiOS Workspace...</span>
-      </div>
-    );
-  }
-
-  // Show onboarding wizard if not onboarded
   if (!isOnboarded) {
     return <Onboarding onComplete={handleOnboardingComplete} />;
   }
@@ -121,26 +119,37 @@ export default function Home() {
     }
   };
 
+  const mobileTabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'planner', label: 'Planner', icon: CheckSquare },
+    { id: 'calendar', label: 'Calendar', icon: Calendar },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'ai', label: 'AI Assistant', icon: Sparkles }
+  ];
+
   return (
     <div className="min-h-screen text-white bg-zinc-950/20 antialiased relative">
       
-      {/* Sidebar Nav Drawer */}
-      <Sidebar 
-        currentView={currentView} 
-        setView={setView} 
-        collapsed={sidebarCollapsed} 
-        setCollapsed={setSidebarCollapsed} 
-      />
+      {/* Sidebar Nav Drawer - Hidden on Mobile */}
+      {!isMobile && (
+        <Sidebar 
+          currentView={currentView} 
+          setView={setView} 
+          collapsed={sidebarCollapsed} 
+          setCollapsed={setSidebarCollapsed} 
+        />
+      )}
 
       {/* Main Workspace Frame */}
       <div 
-        className="transition-all duration-300 min-h-screen py-4 pr-4 flex flex-col"
-        style={{ marginLeft: sidebarCollapsed ? '104px' : '280px' }}
+        className={`transition-all duration-300 min-h-screen py-4 flex flex-col ${isMobile ? 'px-4 pb-24' : 'pr-4'}`}
+        style={{ marginLeft: isMobile ? '0px' : (sidebarCollapsed ? '104px' : '280px') }}
       >
         
         {/* Workspace top header */}
         <Header 
           currentView={currentView} 
+          setView={setView}
           onSearchClick={() => setCommandPaletteOpen(true)} 
         />
 
@@ -149,6 +158,28 @@ export default function Home() {
           {renderView()}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 right-0 h-16 bg-zinc-950/80 backdrop-blur-lg border-t border-white/5 z-40 flex items-center justify-around px-2 pb-safe">
+          {mobileTabs.map(tab => {
+            const Icon = tab.icon;
+            const isActive = currentView === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setView(tab.id as any)}
+                className={`flex flex-col items-center justify-center flex-1 h-full cursor-pointer transition-all ${
+                  isActive ? 'text-purple-400 font-bold scale-110' : 'text-zinc-400'
+                }`}
+              >
+                <Icon size={18} className={isActive ? 'text-purple-400' : 'text-zinc-400'} />
+                <span className="text-[10px] mt-1 font-sans tracking-wide">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Command Launcher Modal overlay */}
       <CommandPalette 
