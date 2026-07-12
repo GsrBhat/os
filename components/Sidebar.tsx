@@ -77,8 +77,8 @@ export default function Sidebar({ currentView, setView, collapsed, setCollapsed 
         collapsed ? 'w-20' : 'w-64'
       }`}
     >
-      {/* Brand Logo & Collapse */}
-      <div className="px-4">
+      {/* Scrollable Navigation Body */}
+      <div className="flex-1 overflow-y-auto px-4 select-none scrollbar-thin">
         <div className="flex items-center justify-between mb-6">
           {!collapsed && (
             <div className="flex items-center gap-2 pl-2">
@@ -214,7 +214,7 @@ export default function Sidebar({ currentView, setView, collapsed, setCollapsed 
       </div>
 
       {/* Footer / Log Out & System Status */}
-      <div className="px-4 space-y-3">
+      <div className="px-4 mt-4 shrink-0 space-y-3">
         <button
           onClick={() => {
             if (confirm('Are you sure you want to log out of your study workspace?')) {
